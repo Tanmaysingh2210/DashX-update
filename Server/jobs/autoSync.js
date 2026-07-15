@@ -22,58 +22,59 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 export const runAutoSync = async () => {
   const runStart = Date.now();
   console.log(`\n[AutoSync] starting run at ${new Date().toISOString()}`);
-
+ 
   try {
     const cutoff = new Date(Date.now() - TWENTY_FOUR_HOURS_MS);
-
-    // find users who need a sync:
-    //   - setup complete (leetcodeUsername set)
-    //   - never synced OR last sync was > 24h ago
+ 
+    // fetch users who need syncing — at minimum they must have GitHub (always true)
+    // no longer require leetcodeUsername — GitHub-only users are valid
     const usersToSync = await User.find({
-      leetcodeUsername: { $ne: null },
       $or: [
         { lastSynced: null },
         { lastSynced: { $lt: cutoff } },
       ],
-    }).select("_id githubUsername leetcodeUsername lastSynced").lean();
-
+    })
+      .select("_id githubUsername leetcodeUsername tryhackmeUsername tryhackmeUserId lastSynced")
+      .lean();
+ 
     if (!usersToSync.length) {
-      console.log("[AutoSync] no users need syncing right now");
+      console.log("[AutoSync] no users need syncing");
       return;
     }
-
-    console.log(`[AutoSync] found ${usersToSync.length} user(s) to sync`);
-
+ 
+    console.log(`[AutoSync] ${usersToSync.length} user(s) to sync`);
+ 
     let succeeded = 0;
-    let failed = 0;
-
-    // sequential sync — one user at a time to be a good API citizen
+    let failed    = 0;
+ 
     for (const user of usersToSync) {
       try {
-        console.log(`[AutoSync] syncing ${user.githubUsername} (lastSynced: ${user.lastSynced || "never"})`);
-
+        console.log(
+          `[AutoSync] syncing ${user.githubUsername} — ` +
+          `LC: ${!!user.leetcodeUsername}, THM: ${!!user.tryhackmeUsername}`
+        );
+ 
         await syncUserActivity(
           user._id,
           user.githubUsername,
-          user.leetcodeUsername,
-          user.lastSynced  // null = first sync (full), date = incremental
+          user.leetcodeUsername  || null,
+          user.tryhackmeUsername || null,
+          user.tryhackmeUserId   || null,
+          user.lastSynced
         );
-
+ 
         succeeded++;
-        console.log(`[AutoSync] ✓ ${user.githubUsername} done`);
+        console.log(`[AutoSync] ✓ ${user.githubUsername}`);
       } catch (err) {
         failed++;
-        console.error(`[AutoSync] ✗ ${user.githubUsername} failed:`, err.message);
-        // don't throw — keep going for remaining users
+        console.error(`[AutoSync] ✗ ${user.githubUsername}:`, err.message);
       }
     }
-
+ 
     const elapsed = ((Date.now() - runStart) / 1000).toFixed(1);
-    console.log(
-      `[AutoSync] run complete in ${elapsed}s — succeeded: ${succeeded}, failed: ${failed}`
-    );
+    console.log(`[AutoSync] done in ${elapsed}s — succeeded: ${succeeded}, failed: ${failed}`);
   } catch (err) {
-    console.error("[AutoSync] cron run error:", err.message);
+    console.error("[AutoSync] run error:", err.message);
   }
 };
 
@@ -86,8 +87,5 @@ export const runAutoSync = async () => {
  */
 export const startAutoSync = () => {
   console.log("[AutoSync] scheduled — runs every hour");
-
-  cron.schedule("0 * * * *", runAutoSync, {
-    timezone: "UTC",
-  });
+  cron.schedule("0 * * * *", runAutoSync, { timezone: "UTC" });
 };

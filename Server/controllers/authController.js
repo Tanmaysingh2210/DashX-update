@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { syncUserActivity } from "../services/activityService.js";
 import { extractLeetCodeUsername } from "../utils/sanitize.js";
+import { validateTryHackMeUsername, fetchTryHackMeUserId } from "../services/tryhackmeService.js";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -19,9 +20,33 @@ const attachCookie = (res, token) => {
   });
 };
 
+// ─── formatUser — consistent user object shape ───────────────────────────────
+
+const formatUser = (user) => ({
+  id: user._id,
+  githubUsername: user.githubUsername,
+  leetcodeUsername: user.leetcodeUsername || null,
+  tryhackmeUsername: user.tryhackmeUsername || null,
+  avatar: user.avatar,
+  email: user.email,
+  lastSynced: user.lastSynced,
+  longestStreak: user.longestStreak || 0,
+  joinedAt: user.createdAt,
+  // isSetupComplete is now just "has any secondary platform connected"
+  // but we no longer BLOCK the dashboard on it
+  isSetupComplete: !!(user.leetcodeUsername || user.tryhackmeUsername),
+  hasLeetCode: !!user.leetcodeUsername,
+  hasTryHackMe: !!user.tryhackmeUsername,
+  isPublic: user.isPublic ?? true,
+  includePrivate: user.includePrivate ?? false,
+  weeklyReports: user.weeklyReports ?? false,
+  notifications: user.notifications ?? true,
+  syncStatus: user.syncStatus || "idle",
+});
+
 // ─── controllers ────────────────────────────────────────────────────────────
 
-export const githubLogin = (req, res) => {};
+export const githubLogin = (req, res) => { };
 
 /**
  * GET /auth/github/callback
@@ -53,41 +78,7 @@ export const githubCallback = (req, res) => {
  * Returns the currently logged-in user's profile.
  */
 export const getMe = (req, res) => {
-  const {
-    _id,
-    githubUsername,
-    leetcodeUsername,
-    avatar,
-    email,
-    lastSynced,
-    longestStreak,
-    createdAt,
-    isPublic,
-    includePrivate,
-    weeklyReports,
-    notifications,
-    syncStatus,
-  } = req.user;
-
-  res.status(200).json({
-    success: true,
-    user: {
-      id: _id,
-      githubUsername,
-      leetcodeUsername,
-      avatar,
-      email,
-      lastSynced,
-      longestStreak: longestStreak || 0,
-      joinedAt: createdAt,
-      isSetupComplete: !!leetcodeUsername,
-      isPublic: isPublic ?? true,
-      includePrivate: includePrivate ?? false,
-      weeklyReports: weeklyReports ?? false,
-      notifications: notifications ?? true,
-      syncStatus: syncStatus || "idle",
-    },
-  });
+  res.status(200).json({ success: true, user: formatUser(req.user) });
 };
 
 /**
@@ -108,28 +99,23 @@ export const getSyncStatus = async (req, res) => {
   }
 };
 
+// ─── PATCH /auth/connect/leetcode ────────────────────────────────────────────
+
 /**
- * PATCH /auth/setup-leetcode
- * Saves the user's LeetCode username, then triggers first sync in background.
+ * Connects the user's LeetCode account.
+ * Triggers a background sync after saving.
+ * Body: { leetcodeUsername: string }
  */
-export const setupLeetcode = async (req, res) => {
+export const connectLeetCode = async (req, res) => {
   try {
     const { leetcodeUsername } = req.body;
-
-    if (!leetcodeUsername || typeof leetcodeUsername !== "string") {
-      return res.status(400).json({
-        success: false,
-        message: "leetcodeUsername is required",
-      });
+    if (!leetcodeUsername) {
+      return res.status(400).json({ success: false, message: "leetcodeUsername is required" });
     }
 
     const cleaned = extractLeetCodeUsername(leetcodeUsername);
-
     if (cleaned.length < 2 || cleaned.length > 40) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid LeetCode username length",
-      });
+      return res.status(400).json({ success: false, message: "Invalid LeetCode username" });
     }
 
     const user = await User.findByIdAndUpdate(
@@ -138,41 +124,137 @@ export const setupLeetcode = async (req, res) => {
       { new: true }
     );
 
-    // respond immediately — don't make the user wait for the full sync
     res.status(200).json({
       success: true,
-      message: "LeetCode username saved. Initial sync started in background.",
-      user: {
-        id: user._id,
-        githubUsername: user.githubUsername,
-        leetcodeUsername: user.leetcodeUsername,
-        avatar: user.avatar,
-        isSetupComplete: true,
-        isPublic: user.isPublic ?? true,
-        includePrivate: user.includePrivate ?? false,
-        weeklyReports: user.weeklyReports ?? false,
-        notifications: user.notifications ?? true,
-        syncStatus: "syncing",
-      },
+      message: "LeetCode connected. Syncing in background…",
+      user: formatUser(user),
     });
 
-    // trigger first sync in background AFTER response is sent
-    // lastSynced is null (first time) so service does a full all-years fetch
-    syncUserActivity(user._id, user.githubUsername, cleaned, null)
+    // background sync — include all currently connected platforms
+    syncUserActivity(
+      user._id,
+      user.githubUsername,
+      cleaned,
+      user.tryhackmeUsername,
+      user.tryhackmeUserId,
+      null // null = full sync since this is a new platform connection
+    )
       .then(async () => {
         await User.findByIdAndUpdate(user._id, { syncStatus: "done" });
-        console.log(`[Setup] first sync complete for ${user.githubUsername}`);
+        console.log(`[Connect] LeetCode sync complete for ${user.githubUsername}`);
       })
       .catch(async (err) => {
         await User.findByIdAndUpdate(user._id, { syncStatus: "failed" });
-        console.error(`[Setup] first sync failed for ${user.githubUsername}:`, err.message);
+        console.error(`[Connect] LeetCode sync failed:`, err.message);
       });
 
   } catch (err) {
-    console.error("[setupLeetcode] error:", err.message);
+    console.error("[connectLeetCode] error:", err.message);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+
+// ─── PATCH /auth/connect/tryhackme ───────────────────────────────────────────
+
+/**
+ * Connects the user's TryHackMe account.
+ * Looks up the internal THM user ID (needed for their API) and stores it.
+ * Triggers background sync after saving.
+ * Body: { tryhackmeUsername: string }
+ */
+export const connectTryHackMe = async (req, res) => {
+  try {
+    const { tryhackmeUsername } = req.body;
+    if (!tryhackmeUsername) {
+      return res.status(400).json({ success: false, message: "tryhackmeUsername is required" });
+    }
+
+    const cleaned = tryhackmeUsername.trim();
+
+    // validate + get internal ID in one call
+    const { valid, userId: thmUserId } = await validateTryHackMeUsername(cleaned);
+    if (!valid) {
+      return res.status(400).json({
+        success: false,
+        message: `TryHackMe user "${cleaned}" not found. Check your username and try again.`,
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        tryhackmeUsername: cleaned,
+        tryhackmeUserId: thmUserId,
+        syncStatus: "syncing",
+      },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "TryHackMe connected. Syncing in background…",
+      user: formatUser(user),
+    });
+
+    // background sync
+    syncUserActivity(
+      user._id,
+      user.githubUsername,
+      user.leetcodeUsername,
+      cleaned,
+      thmUserId,
+      null // full sync for new platform
+    )
+      .then(async () => {
+        await User.findByIdAndUpdate(user._id, { syncStatus: "done" });
+        console.log(`[Connect] TryHackMe sync complete for ${user.githubUsername}`);
+      })
+      .catch(async (err) => {
+        await User.findByIdAndUpdate(user._id, { syncStatus: "failed" });
+        console.error(`[Connect] TryHackMe sync failed:`, err.message);
+      });
+
+  } catch (err) {
+    console.error("[connectTryHackMe] error:", err.message);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ─── PATCH /auth/disconnect/:platform ────────────────────────────────────────
+
+/**
+ * Disconnects a platform (leetcode or tryhackme).
+ * Clears the username from the User model.
+ * Does NOT delete activity data — the user can reconnect later.
+ */
+export const disconnectPlatform = async (req, res) => {
+  try {
+    const { platform } = req.params;
+    const allowed = ["leetcode", "tryhackme"];
+
+    if (!allowed.includes(platform)) {
+      return res.status(400).json({ success: false, message: "Unknown platform" });
+    }
+
+    const updates = {};
+    if (platform === "leetcode") {
+      updates.leetcodeUsername = null;
+    }
+    if (platform === "tryhackme") {
+      updates.tryhackmeUsername = null;
+      updates.tryhackmeUserId = null;
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    res.status(200).json({ success: true, message: `${platform} disconnected`, user: formatUser(user) });
+  } catch (err) {
+    console.error("[disconnectPlatform] error:", err.message);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const setupLeetcode = connectLeetCode;
 
 /**
  * PATCH /auth/preferences
@@ -187,32 +269,13 @@ export const updatePreferences = async (req, res) => {
     if (typeof notifications === "boolean") updates.notifications = notifications;
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
-
-    res.status(200).json({
-      success: true,
-      message: "Preferences updated successfully",
-      user: {
-        id: user._id,
-        githubUsername: user.githubUsername,
-        leetcodeUsername: user.leetcodeUsername,
-        avatar: user.avatar,
-        email: user.email,
-        lastSynced: user.lastSynced,
-        longestStreak: user.longestStreak || 0,
-        joinedAt: user.createdAt,
-        isSetupComplete: !!user.leetcodeUsername,
-        isPublic: user.isPublic ?? true,
-        includePrivate: user.includePrivate ?? false,
-        syncStatus: user.syncStatus || "idle",
-        weeklyReports: user.weeklyReports ?? false,
-        notifications: user.notifications ?? true,
-      },
-    });
+    res.status(200).json({ success: true, message: "Preferences updated", user: formatUser(user) });
   } catch (err) {
     console.error("[updatePreferences] error:", err.message);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 /**
  * POST /auth/logout

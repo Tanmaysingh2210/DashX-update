@@ -1,5 +1,6 @@
-import { fetchAllGitHubContributions ,fetchCurrentYearGitHubContributions } from "./githubService.js";
-import { fetchAllLeetCodeSubmissions , fetchCurrentYearLeetCodeSubmissions } from "./leetcodeService.js";
+import { fetchAllGitHubContributions, fetchCurrentYearGitHubContributions } from "./githubService.js";
+import { fetchAllLeetCodeSubmissions, fetchCurrentYearLeetCodeSubmissions } from "./leetcodeService.js";
+import { fetchAllTryHackMeActivity, fetchCurrentYearTryHackMeActivity } from "./tryhackmeService.js";
 import User from "../models/User.js";
 import Activity from "../models/Activity.js";
 
@@ -20,7 +21,7 @@ export const mergeDays = (githubDays, leetcodeDays) => {
   const map = new Map();
 
   for (const { date, count } of githubDays) {
-    if (count > 0) map.set(date, { githubCount: count, leetcodeCount: 0 });
+    if (count > 0) map.set(date, { githubCount: count, leetcodeCount: 0, tryhackmeCount: 0 });
   }
 
   for (const { date, count } of leetcodeDays) {
@@ -28,7 +29,17 @@ export const mergeDays = (githubDays, leetcodeDays) => {
       if (map.has(date)) {
         map.get(date).leetcodeCount = count;
       } else {
-        map.set(date, { githubCount: 0, leetcodeCount: count });
+        map.set(date, { githubCount: 0, leetcodeCount: count, tryhackmeCount: 0 });
+      }
+    }
+  }
+
+  for (const { date, count } of tryhackmeDays) {
+    if (count > 0) {
+      if (map.has(date)) {
+        map.get(date).tryhackmeCount = count;
+      } else {
+        map.set(date, { githubCount: 0, leetcodeCount: 0, tryhackmeCount: count });
       }
     }
   }
@@ -38,7 +49,8 @@ export const mergeDays = (githubDays, leetcodeDays) => {
       date,
       githubCount,
       leetcodeCount,
-      totalCount: githubCount + leetcodeCount,
+      tryhackmeCount,
+      totalCount: githubCount + leetcodeCount + tryhackmeCount,
     }))
     .sort((a, b) => (a.date > b.date ? 1 : -1));
 };
@@ -103,12 +115,8 @@ export const calculateStreaks = (activeDays) => {
 
   // ── current streak (walk backward from today using safe subtractDay) ──
   let currentStreak = 0;
-  let checkDate = today;
+  let checkDate = activeDates.has(today) ? today : subtractDay(today, 1);;
 
-  // grace period — if nothing logged today yet, start from yesterday
-  if (!activeDates.has(today)) {
-    checkDate = subtractDay(today, 1);
-  }
 
   while (activeDates.has(checkDate)) {
     currentStreak++;
@@ -130,10 +138,11 @@ export const calculateStreaks = (activeDays) => {
  * @param {string} leetcodeUsername
  * @param {boolean} incrementalOnly - true for repeat syncs (current year only)
  */
-const fetchMergeAndSave = async (
-  userId,
+const fetchFromAllPlatforms = async (
   githubUsername,
   leetcodeUsername,
+  tryhackmeUsername,
+  tryhackmeUserId,
   incrementalOnly
 ) => {
   const githubFn = incrementalOnly
@@ -144,13 +153,25 @@ const fetchMergeAndSave = async (
     ? fetchCurrentYearLeetCodeSubmissions
     : fetchAllLeetCodeSubmissions;
 
-  const [githubResult, leetcodeResult] = await Promise.allSettled([
-    githubFn(githubUsername),
-    leetcodeFn(leetcodeUsername),
-  ]);
+  const tryhackmeFn = incrementalOnly ? fetchCurrentYearTryHackMeActivity : fetchAllTryHackMeActivity;
 
-  const githubDays  = githubResult.status  === "fulfilled" ? githubResult.value  : [];
+  // always fetch GitHub
+  const promises = [githubFn(githubUsername)];
+
+  // only fetch if connected
+  promises.push(leetcodeUsername ? leetcodeFn(leetcodeUsername) : Promise.resolve([]));
+  promises.push(
+    tryhackmeUsername && tryhackmeUserId
+      ? tryhackmeFn(tryhackmeUsername, tryhackmeUserId)
+      : Promise.resolve([])
+  );
+
+
+  const [githubResult, leetcodeResult, tryhackmeResult] = await Promise.allSettled(promises);
+
+  const githubDays = githubResult.status === "fulfilled" ? githubResult.value : [];
   const leetcodeDays = leetcodeResult.status === "fulfilled" ? leetcodeResult.value : [];
+  const tryhackmeDays = tryhackmeResult.status === "fulfilled" ? tryhackmeResult.value : [];
 
   const sourceErrors = {};
   if (githubResult.status === "rejected") {
@@ -161,42 +182,36 @@ const fetchMergeAndSave = async (
     sourceErrors.leetcode = leetcodeResult.reason?.message || "Unknown LeetCode error";
     console.error(`[Sync] LeetCode fetch failed:`, sourceErrors.leetcode);
   }
+  if (tryhackmeResult.status === "rejected") sourceErrors.tryhackme = tryhackmeResult.reason?.message;
 
-  if (githubResult.status === "rejected" && leetcodeResult.status === "rejected") {
+  if (githubResult.status === "rejected" && leetcodeResult.status === "rejected" && tryhackmeResult.status === "rejected") {
     const err = new Error(
-      `Both sources failed — GitHub: ${sourceErrors.github} | LeetCode: ${sourceErrors.leetcode}`
+      "All platform syncs failed"
     );
     err.sourceErrors = sourceErrors;
     throw err;
   }
 
-  console.log(
-    `[Sync] fetched ${githubDays.length} GitHub days, ${leetcodeDays.length} LeetCode days`
-  );
+  console.log(`[Sync] fetched — GitHub: ${githubDays.length} days, LeetCode: ${leetcodeDays.length} days, TryHackMe: ${tryhackmeDays.length} days`);
 
-  // merge — only non-zero days come back from mergeDays()
-  const mergedDays = mergeDays(githubDays, leetcodeDays);
-  console.log(`[Sync] ${mergedDays.length} active days to save`);
+  return { githubDays, leetcodeDays, tryhackmeDays, sourceErrors };
+};
 
-  if (mergedDays.length > 0) {
-    const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, totalCount }) => ({
-      updateOne: {
-        filter: { userId, date },
-        update: { $set: { githubCount, leetcodeCount, totalCount } },
-        upsert: true,
-      },
-    }));
+// ─── bulk upsert ─────────────────────────────────────────────────────────────
 
-    const result = await Activity.bulkWrite(bulkOps, { ordered: false });
-    console.log(
-      `[Sync] DB — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`
-    );
-  }
+const saveToDb = async (userId, mergedDays) => {
+  if (!mergedDays.length) return;
 
-  // note: lastSynced + longestStreak are updated in syncUserActivity after
-  // streak calculation — not here, so we have the correct values to persist
+  const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, tryhackmeCount, totalCount }) => ({
+    updateOne: {
+      filter: { userId, date },
+      update: { $set: { githubCount, leetcodeCount, tryhackmeCount, totalCount } },
+      upsert: true,
+    },
+  }));
 
-  return { sourceErrors };
+  const result = await Activity.bulkWrite(bulkOps, { ordered: false });
+  console.log(`[Sync] DB — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);
 };
 
 // ─── main sync function ───────────────────────────────────────────────────────
@@ -215,18 +230,24 @@ const fetchMergeAndSave = async (
  * @param {string} leetcodeUsername
  * @param {Date|null} lastSynced
  */
-export const syncUserActivity = async (userId, githubUsername, leetcodeUsername, lastSynced) => {
+export const syncUserActivity = async (userId, githubUsername, leetcodeUsername, tryhackmeUsername, tryhackmeUserId, lastSynced) => {
   console.log(`\n[Sync] starting for user ${userId}`);
+  console.log(`[Sync] platforms — LeetCode: ${!!leetcodeUsername}, TryHackMe: ${!!tryhackmeUsername}`);
 
   const isFirstSync = !lastSynced;
   console.log(`[Sync] mode: ${isFirstSync ? "FULL (first sync)" : "INCREMENTAL (current year only)"}`);
 
-  const { sourceErrors } = await fetchMergeAndSave(
-    userId,
+
+  const { githubDays, leetcodeDays, tryhackmeDays, sourceErrors } = await fetchFromAllPlatforms(
     githubUsername,
     leetcodeUsername,
-    !isFirstSync  // incrementalOnly = true for repeat syncs
+    tryhackmeUsername,
+    tryhackmeUserId,
+    !isFirstSync,
   );
+
+  const mergedDays = mergeDays(githubDays, leetcodeDays, tryhackmeDays);
+  await saveToDb(userId, mergedDays);
 
   // read all active days from DB for accurate streak calculation
   // (much faster than re-fetching all years from the API again)
@@ -246,9 +267,7 @@ export const syncUserActivity = async (userId, githubUsername, leetcodeUsername,
     $max: { longestStreak },
   });
 
-  console.log(
-    `[Sync] done — streak: ${currentStreak}, longest: ${longestStreak}, total: ${totalContributions}, docs: ${totalDays}`
-  );
+  console.log(`[Sync] done — streak: ${currentStreak}, longest: ${longestStreak}, total: ${totalContributions}`);
 
   return {
     currentStreak,

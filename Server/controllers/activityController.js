@@ -1,13 +1,14 @@
 import { syncUserActivity, calculateStreaks } from "../services/activityService.js";
 import {
   validateGitHubUsername,
-}  from "../services/githubService.js";
+} from "../services/githubService.js";
 import {
   validateLeetCodeUsername,
 } from "../services/leetcodeService.js";
+import { validateTryHackMeUsername } from "../services/tryhackmeService.js";
 import User from "../models/User.js";
-import { extractLeetCodeUsername } from "../utils/sanitize.js";
 import Activity from "../models/Activity.js";
+import { extractLeetCodeUsername } from "../utils/sanitize.js";
 
 // ─── POST /activity/sync ─────────────────────────────────────────────────────
 
@@ -21,48 +22,37 @@ import Activity from "../models/Activity.js";
  */
 export const syncActivity = async (req, res) => {
   try {
-    const user = req.user; // set by verifyToken middleware
+    const user = req.user;
 
-    // guard — LeetCode username must be configured first
-    if (!user.leetcodeUsername) {
-      return res.status(400).json({
-        success: false,
-        message: "LeetCode username not set. Complete setup first.",
-        redirectTo: "/setup",
-      });
-    }
-
-    // rate limit — prevent hammering the APIs
-    // allow re-sync only after 1 hour
+    // need at least GitHub (always connected) — no LeetCode/THM required
     if (user.lastSynced) {
-      const minutesSinceSync =
-        (Date.now() - new Date(user.lastSynced).getTime()) / 1000 / 60;
-
-      if (minutesSinceSync < 60) {
+      const minutesSince = (Date.now() - new Date(user.lastSynced).getTime()) / 60000;
+      if (minutesSince < 60) {
         return res.status(429).json({
           success: false,
-          message: `Synced ${Math.floor(minutesSinceSync)} minutes ago. Please wait ${Math.ceil(60 - minutesSinceSync)} minutes.`,
+          message: `Synced ${Math.floor(minutesSince)} min ago. Wait ${Math.ceil(60 - minutesSince)} more minutes.`,
           lastSynced: user.lastSynced,
         });
       }
     }
 
-    // run smart sync — passes lastSynced so service knows full vs incremental
     const stats = await syncUserActivity(
       user._id,
       user.githubUsername,
-      user.leetcodeUsername,
-      user.lastSynced   // null = first sync (full), date = repeat (incremental)
+      user.leetcodeUsername || null,
+      user.tryhackmeUsername || null,
+      user.tryhackmeUserId || null,
+      user.lastSynced
     );
 
     res.status(200).json({
       success: true,
       message: stats.sourceErrors
         ? `Sync partially completed — ${Object.entries(stats.sourceErrors)
-            .map(([source, msg]) => `${source}: ${msg}`)
-            .join(" | ")}`
+          .map(([s, m]) => `${s}: ${m}`)
+          .join(" | ")}`
         : "Sync complete",
-      stats, // { currentStreak, longestStreak, totalDays, totalContributions, sourceErrors? }
+      stats,
     });
   } catch (err) {
     console.error("[syncActivity] error:", err.message);
@@ -86,26 +76,23 @@ export const getHeatmap = async (req, res) => {
     // timezone-safe "today" that covers both UTC and UTC+14 (the farthest
     // ahead timezone).  This ensures today's commits/submissions always
     // appear even when the server runs in UTC but the user is in IST/etc.
-    const clientToday = req.query.today;          // "YYYY-MM-DD" from client
-    const utcToday = new Date().toISOString().split("T")[0];
-    const today = clientToday || utcToday;
+    const now = new Date();
+    const localToday = req.query.today;
+    const utcToday = now.toISOString().split("T")[0];
+    const today = localToday || utcToday;
 
-    const oneYearAgo = (() => {
-      const [y, m, d] = today.split("-").map(Number);
-      const dt = new Date(Date.UTC(y - 1, m - 1, d));
-      return dt.toISOString().split("T")[0];
-    })();
+    const [y, m, d] = today.split("-").map(Number);
+
+    const oneYearAgo = new Date(Date.UTC(y - 1, m - 1, d)).toISOString().split("T")[0];
 
     const from = req.query.from || oneYearAgo;
     const to = req.query.to || today;
 
-    const days = await Activity.find({
-      userId,
-      date: { $gte: from, $lte: to },
-    })
+    const days = await Activity.find({ userId, date: { $gte: from, $lte: to } })
       .sort({ date: 1 })
-      .select("-_id -userId -__v") // only return date, githubCount, leetcodeCount, totalCount
+      .select("-_id -userId -__v")
       .lean();
+
 
     res.status(200).json({
       success: true,
@@ -134,35 +121,32 @@ export const getStats = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // fetch all activity for streak calculation
-    const allDays = await Activity.find({ userId , totalCount: {$gt: 0 } })
+    const allDays = await Activity.find({ userId, totalCount: { $gt: 0 } })
       .sort({ date: 1 })
-      .select("-_id date totalCount githubCount leetcodeCount")
+      .select("-_id date totalCount githubCount leetcodeCount tryhackmeCount")
       .lean();
 
     if (!allDays.length) {
       return res.status(200).json({
         success: true,
         stats: {
-          currentStreak: 0,
-          longestStreak: 0,
-          totalActiveDays: 0,
-          totalContributions: 0,
-          weeklyActivity: 0,
-          lastSynced: req.user.lastSynced,
+          currentStreak: 0, longestStreak: 0,
+          totalActiveDays: 0, totalContributions: 0,
+          weeklyActivity: 0, lastSynced: req.user.lastSynced,
+          connectedPlatforms: {
+            github: true,
+            leetcode: !!req.user.leetcodeUsername,
+            tryhackme: !!req.user.tryhackmeUsername,
+          },
         },
       });
     }
 
     const { currentStreak, longestStreak } = calculateStreaks(allDays);
-
-    const totalActiveDays = allDays.filter((d) => d.totalCount > 0).length;
+    const totalActiveDays = allDays.length;
     const totalContributions = allDays.reduce((s, d) => s + d.totalCount, 0);
 
-    // weekly activity — last 7 days
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const weeklyActivity = allDays
       .filter((d) => d.date >= sevenDaysAgo)
       .reduce((s, d) => s + d.totalCount, 0);
@@ -176,6 +160,11 @@ export const getStats = async (req, res) => {
         totalContributions,
         weeklyActivity,
         lastSynced: req.user.lastSynced,
+        connectedPlatforms: {
+          github: true,
+          leetcode: !!req.user.leetcodeUsername,
+          tryhackme: !!req.user.tryhackmeUsername,
+        },
       },
     });
   } catch (err) {
@@ -183,6 +172,7 @@ export const getStats = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 // ─── POST /activity/validate ─────────────────────────────────────────────────
 
@@ -195,19 +185,24 @@ export const getStats = async (req, res) => {
  */
 export const validateUsernames = async (req, res) => {
   try {
-    const leetcodeUsername = extractLeetCodeUsername(req.body.leetcodeUsername);
+    const { leetcodeUsername, tryhackmeUsername } = req.body;
     const { githubUsername } = req.user;
 
-    const [githubValid, leetcodeValid] = await Promise.all([
-      validateGitHubUsername(githubUsername),
-      validateLeetCodeUsername(leetcodeUsername),
-    ]);
+    const checks = [validateGitHubUsername(githubUsername)];
+    const haslc = !!leetcodeUsername;
+    const hasthm = !!tryhackmeUsername;
+
+    if (haslc) checks.push(validateLeetCodeUsername(extractLeetCodeUsername(leetcodeUsername)));
+    if (hasthm) checks.push(validateTryHackMeUsername(tryhackmeUsername));
+
+    const results = await Promise.allSettled(checks);
 
     res.status(200).json({
       success: true,
       validation: {
-        github: { username: githubUsername, valid: githubValid },
-        leetcode: { username: leetcodeUsername, valid: leetcodeValid },
+        github: { username: githubUsername, valid: results[0].status === "fulfilled" ? results[0].value : false },
+        ...(haslc && { leetcode: { username: leetcodeUsername, valid: results[1]?.value ?? false } }),
+        ...(hasthm && { tryhackme: { username: tryhackmeUsername, valid: results[haslc ? 2 : 1]?.value?.valid ?? false } }),
       },
     });
   } catch (err) {
@@ -223,18 +218,11 @@ export const validateUsernames = async (req, res) => {
  * Safe to call multiple times (idempotent).
  * These are legacy docs from before the "only save non-zero" change.
  */
+
 export const cleanupZeroDays = async (req, res) => {
   try {
-    const result = await Activity.deleteMany({
-      userId: req.user._id,
-      totalCount: 0,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Removed ${result.deletedCount} zero-count documents`,
-      deletedCount: result.deletedCount,
-    });
+    const result = await Activity.deleteMany({ userId: req.user._id, totalCount: 0 });
+    res.status(200).json({ success: true, message: `Removed ${result.deletedCount} zero-count documents`, deletedCount: result.deletedCount });
   } catch (err) {
     console.error("[cleanupZeroDays] error:", err.message);
     res.status(500).json({ success: false, message: "Server error" });

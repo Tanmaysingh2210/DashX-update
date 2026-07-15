@@ -19,9 +19,13 @@ const activitySchema = new Schema(
       type: Number,
       default: 0,
     },
+    tryhackmeCount: {
+      type: Number,
+      default: 0,
+    },
     totalCount: {
       type: Number,
-      default: 0,       // precomputed = githubCount + leetcodeCount
+      default: 0,       // precomputed = githubCount + leetcodeCount + tryhackme
     },
   },
   {

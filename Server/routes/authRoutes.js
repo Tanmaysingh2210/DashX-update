@@ -1,69 +1,49 @@
 import express from "express";
 import passport from "passport";
 import {
-    githubCallback,
-    getMe,
-    getSyncStatus,
-    setupLeetcode,
-    logout,
-    updatePreferences,
+  githubCallback,
+  getMe,
+  getSyncStatus,
+  connectLeetCode,
+  connectTryHackMe,
+  disconnectPlatform,
+  setupLeetcode,       // backwards compat alias for connectLeetCode
+  logout,
+  updatePreferences,
 } from "../controllers/authController.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = express.Router();
 
-/**
- * GET /auth/github
- * Kicks off GitHub OAuth — redirects user to GitHub consent page
- */
-router.get(
-    "/github",
-    passport.authenticate("github", { scope: ["user:email"], session: false })
+// ── OAuth ──
+router.get("/github",
+  passport.authenticate("github", { scope: ["user:email"], session: false })
 );
 
-/**
- * GET /auth/github/callback
- * GitHub redirects here after user approves
- * passport.authenticate runs our strategy verify callback first,
- * then calls githubCallback with req.user populated
- */
-router.get(
-    "/github/callback",
-    passport.authenticate("github", {
-        session: false,           // we handle sessions via JWT cookie
-        failureRedirect: `${process.env.CLIENT_URL}/login?error=auth_failed`,
-    }),
-    githubCallback
+router.get("/github/callback",
+  passport.authenticate("github", {
+    session: false,
+    failureRedirect: `${process.env.CLIENT_URL}/?error=auth_failed`,
+  }),
+  githubCallback
 );
 
-/**
- * GET /auth/me
- * Returns current user's profile — requires valid JWT cookie
- */
-router.get("/me", verifyToken, getMe);
-
-/**
- * GET /auth/sync-status
- * Lightweight polling endpoint for initial sync progress
- */
+// ── Session ──
+router.get("/me",          verifyToken, getMe);
 router.get("/sync-status", verifyToken, getSyncStatus);
 
-/**
- * PATCH /auth/setup-leetcode
- * Saves LeetCode username after initial GitHub login
- */
+// ── Platform connections (optional — user connects whichever they want) ──
+router.patch("/connect/leetcode",   verifyToken, connectLeetCode);
+router.patch("/connect/tryhackme",  verifyToken, connectTryHackMe);
+router.delete("/disconnect/:platform", verifyToken, disconnectPlatform);
+
+// ── Backwards compat — old /setup-leetcode endpoint still works ──
 router.patch("/setup-leetcode", verifyToken, setupLeetcode);
 
-/**
- * PATCH /auth/preferences
- * Updates user settings preferences
- */
+// ── Preferences ──
 router.patch("/preferences", verifyToken, updatePreferences);
 
-/**
- * POST /auth/logout
- * Clears the JWT cookie
- */
+// ── Logout ──
 router.post("/logout", logout);
 
 export default router;
