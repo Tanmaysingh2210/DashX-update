@@ -1,0 +1,56 @@
+.error-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: rgba(255, 180, 171, 0.08);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: var(--fs-body-md);
+
+  /* fade in */
+  animation: toastIn 200ms var(--ease-out) both;
+  transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+}
+
+.error-toast--fading {
+  opacity: 0;
+  transform: translateY(-4px);
+  /* pointer-events off so it can't be clicked during fade */
+  pointer-events: none;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+.error-toast__message {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.error-toast__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--color-error);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.7;
+  flex-shrink: 0;
+  transition: opacity var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out);
+}
+
+.error-toast__close:hover {
+  opacity: 1;
+  background-color: rgba(255, 180, 171, 0.12);
+}

@@ -1,0 +1,37 @@
+{
+  "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://api.aalsicoders.in/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://api.aalsicoders.in/robots.txt"
+    },
+    {
+      "source": "/u/:username",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(WhatsApp|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Googlebot|Discordbot|TelegramBot|Slackbot|Slack-ImgProxy|GPTBot|PerplexityBot|ClaudeBot|Google-Extended|bingbot|DuckDuckBot|bot|crawler|spider).*"
+        }
+      ],
+      "destination": "https://api.aalsicoders.in/public/og/:username"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options",        "value": "DENY"    },
+        { "key": "X-XSS-Protection",       "value": "1; mode=block" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,195 @@
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: rgba(14, 19, 35, 0.7);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  gap: var(--space-6);
+}
+
+.navbar__brand {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.navbar__links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex: 1;
+  justify-content: center;
+}
+
+.navbar__link {
+  position: relative;
+  font-size: var(--fs-body-md);
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  padding: 8px 4px;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.navbar__link:hover {
+  color: var(--color-on-surface);
+}
+
+.navbar__link--active {
+  color: var(--color-on-surface);
+}
+
+.navbar__link--active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: fadeIn var(--duration-base) var(--ease-out);
+}
+
+.navbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.navbar__icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-on-surface-variant);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.navbar__icon-btn:hover {
+  background-color: var(--fill-ghost);
+  border-color: var(--border-subtle);
+  color: var(--color-on-surface);
+}
+
+.navbar__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--color-surface-high);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-body-md);
+  font-weight: 600;
+  color: var(--color-primary);
+  transition: border-color var(--duration-fast) var(--ease-out);
+  padding: 0;
+}
+
+.navbar__avatar:hover {
+  border-color: var(--color-primary);
+}
+
+.navbar__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .navbar__links {
+    display: none;
+  }
+}
+
+/* ── avatar dropdown ── */
+
+.navbar__avatar-wrap {
+  position: relative;
+}
+
+.navbar__dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 220px;
+  background-color: var(--color-surface-high);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  z-index: 100;
+  overflow: hidden;
+  animation: fadeUp var(--duration-base) var(--ease-out);
+}
+
+.navbar__dropdown-header {
+  padding: var(--space-3) var(--space-4);
+}
+
+.navbar__dropdown-name {
+  font-size: var(--fs-body-md);
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.navbar__dropdown-email {
+  font-size: var(--fs-label-md);
+  color: var(--color-outline);
+  margin-top: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navbar__dropdown-divider {
+  height: 1px;
+  background-color: var(--border-subtle);
+}
+
+.navbar__dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 10px var(--space-4);
+  font-size: var(--fs-body-md);
+  color: var(--color-on-surface-variant);
+  background: transparent;
+  border: none;
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+
+.navbar__dropdown-item:hover {
+  background-color: var(--fill-ghost);
+  color: var(--color-on-surface);
+}
+
+.navbar__dropdown-item--danger {
+  color: var(--color-error);
+}
+
+.navbar__dropdown-item--danger:hover {
+  background-color: rgba(255, 180, 171, 0.08);
+  color: var(--color-error);
+}

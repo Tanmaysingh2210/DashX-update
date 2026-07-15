@@ -1,0 +1,17 @@
+.loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-10) 0;
+  color: var(--color-on-surface-variant);
+}
+
+.loader__spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-surface-highest);
+  border-top-color: var(--color-primary);
+  animation: spin 700ms linear infinite;
+}

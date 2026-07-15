@@ -1,0 +1,244 @@
+.heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heatmap__scroll {
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+}
+
+.heatmap__scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+/* ── month row ── */
+
+.heatmap__months {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 14px;
+  gap: 3px;
+  margin-left: 36px;
+  margin-bottom: var(--space-1);
+  min-width: max-content;
+}
+
+.heatmap__month-cell {
+  font-size: var(--fs-label-md);
+  color: var(--color-outline);
+  white-space: nowrap;
+}
+
+/* ── body ── */
+
+.heatmap__body {
+  display: flex;
+  gap: var(--space-2);
+  min-width: max-content;
+}
+
+.heatmap__days {
+  display: grid;
+  grid-template-rows: repeat(7, 14px);
+  gap: 3px;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.heatmap__day-label {
+  font-size: 10px;
+  color: var(--color-outline);
+  display: flex;
+  align-items: center;
+}
+
+.heatmap__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 14px;
+  gap: 3px;
+}
+
+.heatmap__week {
+  display: grid;
+  grid-template-rows: repeat(7, 14px);
+  gap: 3px;
+}
+
+/* ── cells ── */
+
+.heatmap__cell {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background-color: var(--color-surface-high);
+  opacity: 0;
+  animation: cellIn var(--duration-base) var(--ease-out) forwards;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    outline   var(--duration-fast) var(--ease-out);
+  cursor: pointer;
+}
+
+@keyframes cellIn {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1);   }
+}
+
+.heatmap__cell:hover {
+  transform: scale(1.35);
+  outline: 1.5px solid var(--color-on-surface);
+  outline-offset: 0.5px;
+  z-index: 2;
+}
+
+.heatmap__cell--future {
+  visibility: hidden;
+}
+
+/* ── empty ── */
+/* ── empty cells — desaturated grayish-purple, clearly distinct from active ── */
+.heatmap__cell--empty {
+  background-color: #1c1a2e;   /* muted cool gray-purple — no color commitment */
+}
+ 
+/* Also update surface-high for the base cell in variables.css if needed */
+/* --color-surface-high: #1c1a2e; */
+ 
+/* ── GitHub only — green scale (UNCHANGED) ── */
+.heatmap__cell--github-1 { background-color: #1a3d1f; }
+.heatmap__cell--github-2 { background-color: #25582c; }
+.heatmap__cell--github-3 { background-color: #38883f; }
+.heatmap__cell--github-4 { background-color: #7bdb80; }
+ 
+/* ── LeetCode only — orange scale (UNCHANGED) ── */
+.heatmap__cell--leetcode-1 { background-color: #3d2a0f; }
+.heatmap__cell--leetcode-2 { background-color: #6b430f; }
+.heatmap__cell--leetcode-3 { background-color: #c47b1a; }
+.heatmap__cell--leetcode-4 { background-color: #ffb867; }
+ 
+/* ── Both — purple scale — FIXED for contrast ──
+   Key change:
+   - both-1: was #2d1f4a (too close to empty), now a saturated mid-purple
+   - both-2: brighter step
+   - both-3: vivid purple
+   - both-4: full bright violet
+   Each step is clearly distinguishable from the previous one.           ── */
+.heatmap__cell--both-1 { background-color: #4a2d7a; }   /* saturated deep purple — clearly not empty */
+.heatmap__cell--both-2 { background-color: #6d35b8; }   /* medium purple */
+.heatmap__cell--both-3 { background-color: #9333ea; }   /* vivid purple */
+.heatmap__cell--both-4 { background-color: #c084fc; }   
+
+.heatmap__footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+/* ── tooltip ── */
+
+.heatmap__tooltip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--fs-body-md);
+  color: var(--color-on-surface-variant);
+  min-height: 20px;
+  flex-wrap: wrap;
+}
+
+.heatmap__tooltip-date {
+  font-family: var(--font-mono);
+  font-size: var(--fs-code-sm);
+  color: var(--color-on-surface);
+}
+
+.heatmap__tooltip-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.heatmap__tooltip-hint {
+  color: var(--color-outline);
+  font-size: var(--fs-label-md);
+}
+
+/* ── legend ── */
+
+.heatmap__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: var(--fs-label-md);
+  color: var(--color-outline);
+  flex-wrap: wrap;
+}
+
+.heatmap__legend-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-body-md);
+}
+
+.heatmap__legend-swatches {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+}
+
+.heatmap__legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  animation: none;
+  opacity: 1;
+}
+
+/* ── dot helpers ── */
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.dot--github   { background-color: var(--color-secondary); } /* green */
+.dot--leetcode { background-color: var(--color-tertiary);  } /* orange */
+.dot--combined { background-color: var(--color-primary);   } /* purple */
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  .heatmap__footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  .heatmap__legend {
+    gap: var(--space-4);
+  }
+}
+
+@media (max-width: 600px) {
+  .heatmap__legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+  .heatmap__tooltip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+}

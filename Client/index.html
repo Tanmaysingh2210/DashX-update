@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- ── Favicon ── -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
+
+  <!-- ── Primary SEO ── -->
+  <title>DashX — Unified GitHub & LeetCode Activity Dashboard</title>
+  <meta name="description"
+    content="DashX combines your GitHub contributions and LeetCode submissions into one unified heatmap with streak tracking, consistency scores, and a shareable public developer profile. Free to use." />
+  <meta name="author"   content="AalsiCoders" />
+  <meta name="keywords" content="github leetcode dashboard, coding streak tracker, developer consistency, github heatmap, leetcode progress tracker, combined coding activity, developer portfolio" />
+  <meta name="robots"   content="index, follow" />
+
+  <!-- ── Canonical ── -->
+  <link rel="canonical" href="https://dashx.aalsicoders.in/" />
+
+  <!-- ── Open Graph ── -->
+  <meta property="og:type"         content="website" />
+  <meta property="og:site_name"    content="DashX" />
+  <meta property="og:url"          content="https://dashx.aalsicoders.in/" />
+  <meta property="og:title"        content="DashX — Unified GitHub & LeetCode Activity Dashboard" />
+  <meta property="og:description"  content="Combine your GitHub contributions and LeetCode progress into a single developer dashboard. Track streaks, analyze patterns, and share your coding profile with recruiters." />
+  <meta property="og:image"        content="https://dashx.aalsicoders.in/og-image.png" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt"    content="DashX dashboard showing GitHub and LeetCode activity heatmap" />
+  <meta property="og:locale"       content="en_US" />
+
+  <!-- ── Twitter / X ── -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:site"        content="@aalsicoders" />
+  <meta name="twitter:title"       content="DashX — Unified GitHub & LeetCode Activity Dashboard" />
+  <meta name="twitter:description" content="Combine your GitHub contributions and LeetCode progress into a single developer dashboard. Track streaks, analyze patterns, and share your coding profile." />
+  <meta name="twitter:image"       content="https://dashx.aalsicoders.in/og-image.png" />
+  <meta name="twitter:image:alt"   content="DashX dashboard showing GitHub and LeetCode activity heatmap" />
+
+  <!-- ── JSON-LD: WebApplication ── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "DashX",
+    "url": "https://dashx.aalsicoders.in",
+    "description": "DashX is a free developer dashboard that unifies GitHub contribution history and LeetCode submission data into a single activity heatmap with streak tracking, consistency scoring, and shareable public profiles.",
+    "applicationCategory": "DeveloperApplication",
+    "applicationSubCategory": "ProductivityApplication",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "inLanguage": "en",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "Unified GitHub and LeetCode activity heatmap",
+      "Combined coding streak tracking across platforms",
+      "Consistency score based on last 30 days",
+      "Shareable public developer profile with unique URL",
+      "Automatic daily sync of GitHub contributions",
+      "Automatic daily sync of LeetCode submissions",
+      "Peak month and most active day analytics",
+      "Color-coded heatmap: green for GitHub, orange for LeetCode, purple for both"
+    ],
+    "screenshot": "https://dashx.aalsicoders.in/og-image.png",
+    "creator": {
+      "@type": "Organization",
+      "name": "AalsiCoders",
+      "url": "https://aalsicoders.in"
+    },
+    "sameAs": [
+      "https://github.com/Tanmaysingh2210/DashX"
+    ]
+  }
+  </script>
+
+  <!-- ── JSON-LD: FAQ — AEO (Answer Engine Optimization) ──
+       AI engines like Perplexity, ChatGPT, Gemini extract Q&A pairs
+       from FAQ schema to answer user queries directly.               ── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is DashX?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "DashX is a free developer dashboard that combines your GitHub contribution history and LeetCode submission data into a single unified activity heatmap. It tracks coding streaks across both platforms, calculates consistency scores, and generates a shareable public profile URL you can add to your resume."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does DashX track coding streaks?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "DashX merges daily GitHub contributions and LeetCode submissions into a single timeline. A streak day counts if you had any activity on either platform — so a day where you only solved LeetCode problems still counts toward your streak, even if you made no GitHub commits. This gives a more accurate picture of coding consistency than either platform alone."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I share my DashX profile with recruiters?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Every DashX user gets a public profile URL at dashx.aalsicoders.in/u/YourGitHubUsername. This page shows your activity heatmap, current streak, best streak, consistency score, and GitHub and LeetCode stats — no login required to view it. You can add this link to your resume or LinkedIn profile."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is DashX free to use?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, DashX is completely free. Sign in with your GitHub account, add your LeetCode username, and your dashboard is ready. Data syncs automatically every 24 hours."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does DashX sync GitHub and LeetCode data?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "DashX uses the GitHub GraphQL API to fetch your contribution calendar and the LeetCode GraphQL API to fetch your submission history. On first login, it pulls your full history going back to account creation. After that, it syncs automatically every 24 hours — only fetching the current year's data for efficiency."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does the DashX heatmap show?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The DashX heatmap shows 12 months of daily coding activity color-coded by platform: green cells indicate GitHub-only activity, orange cells indicate LeetCode-only submissions, and purple cells indicate days where you were active on both platforms. Cell intensity increases with the number of contributions or submissions that day."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does DashX count private GitHub repository commits?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "DashX uses the GitHub contribution calendar API which includes commits to private repositories that you own, matching what GitHub shows on your own profile page. Commits to organization private repositories may not be included unless your GitHub account has the appropriate access."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- ── JSON-LD: BreadcrumbList ── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "DashX",
+        "item": "https://dashx.aalsicoders.in/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- ── Google Analytics ── -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-S85JP5VZ7C"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-S85JP5VZ7C');
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>
