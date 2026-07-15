@@ -32,12 +32,7 @@ function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/u/:username" element={<PublicProfile />} />
 
-        {/* /setup is protected (needs GitHub login) but doesn't need
-            activity data yet — kept outside ActivityProvider */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/setup" element={<Setup />} />
-        </Route>
-
+        {/* ── protected app ── */}
         <Route
           element={
             <ActivityProvider>

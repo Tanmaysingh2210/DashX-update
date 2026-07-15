@@ -5,12 +5,14 @@ import Loader from "./Loader";
 /**
  * ProtectedRoute
  *
- * Redirects to "/" if the user isn't authenticated.
- * If authenticated but hasn't completed setup (no leetcodeUsername),
- * redirects to "/setup" — except when already on /setup.
+ * Redirects to "/" if not authenticated.
+ *
+ * Previously redirected to "/setup" if leetcodeUsername wasn't set.
+ * Now: all secondary platforms are optional — users go straight to
+ * the dashboard and connect platforms from there or from Settings.
  */
 const ProtectedRoute = () => {
-  const { isAuthenticated, loading, user } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
@@ -22,10 +24,6 @@ const ProtectedRoute = () => {
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
-  }
-
-  if (!user.isSetupComplete && window.location.pathname !== "/setup") {
-    return <Navigate to="/setup" replace />;
   }
 
   return <Outlet />;

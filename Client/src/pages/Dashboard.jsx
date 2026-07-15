@@ -17,6 +17,7 @@ import {
 } from "../components/Icons";
 import "./Dashboard.css";
 import { ShareIcon } from "../assets/Icons";
+import ConnectPlatformsBanner from "../components/connectPlatformsBanner";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -241,17 +242,24 @@ const Dashboard = () => {
     const githubWeekly = last7Days.reduce((s, d) => s + d.githubCount, 0);
     const leetcodeWeekly = last7Days.reduce((s, d) => s + d.leetcodeCount, 0);
 
+    const tryhackmeTotal = days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const tryhackmeWeekly = last7Days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const lastTryhackme = [...days].reverse().find((d) => (d.tryhackmeCount || 0) > 0);
+
     return {
       githubTotal,
       leetcodeTotal,
+      tryhackmeTotal,      // ← new
       mostActiveDay,
       peakMonth,
       avgPerDay,
       activeDaysIn30,
       lastGithub,
       lastLeetcode,
+      lastTryhackme,       // ← new
       githubWeekly,
       leetcodeWeekly,
+      tryhackmeWeekly,     // ← new
       consistency,
     };
   }, [days]);
@@ -368,6 +376,7 @@ const Dashboard = () => {
         <Loader label="Loading your activity..." />
       ) : (
         <>
+          <ConnectPlatformsBanner />
           <div className="grid dashboard__stats">
             <StatCard
               label="Combined current streak"
@@ -387,15 +396,28 @@ const Dashboard = () => {
               subTone="success"
               delay={60}
             />
-            <StatCard
-              label="LeetCode attempts"
-              value={insights?.leetcodeTotal ?? 0}
-              sub={insights ? `${insights.leetcodeWeekly} this week (incl. failed)` : undefined}
-              icon={<LeetCodeIcon />}
-              accent="tertiary"
-              subTone="warning"
-              delay={120}
-            />
+            {user?.leetcodeUsername && (
+              <StatCard
+                label="LeetCode attempts"
+                value={insights?.leetcodeTotal ?? 0}
+                sub={insights ? `${insights.leetcodeWeekly} this week (incl. failed)` : undefined}
+                icon={<LeetCodeIcon />}
+                accent="tertiary"
+                subTone="warning"
+                delay={120}
+              />
+            )}
+            {user?.tryhackmeUsername && (
+              <StatCard
+                label="TryHackMe rooms"
+                value={insights?.tryhackmeTotal ?? 0}
+                sub={insights ? `${insights.tryhackmeWeekly} this week` : undefined}
+                icon={<TryHackMeIcon />}
+                accent="danger"
+                subTone="danger"
+                delay={150}
+              />
+            )}
             <StatCard
               label="Consistency score"
               value={`${insights?.consistency ?? 0}%`}
@@ -442,18 +464,34 @@ const Dashboard = () => {
               lastActive={insights?.lastGithub?.date}
               delay={300}
             />
-            <ActivityPanel
-              title="LeetCode activity"
-              accent="tertiary"
-              icon={<LeetCodeIcon />}
-              rows={[
-                { label: "Attempts this week", value: insights?.leetcodeWeekly ?? 0 },
-                { label: "Last 12 months (incl. failed)", value: insights?.leetcodeTotal ?? 0 },
-                { label: "Username", value: `${user?.leetcodeUsername}`, mono: true },
-              ]}
-              lastActive={insights?.lastLeetcode?.date}
-              delay={360}
-            />
+            {user?.leetcodeUsername && (
+              <ActivityPanel
+                title="LeetCode activity"
+                accent="tertiary"
+                icon={<LeetCodeIcon />}
+                rows={[
+                  { label: "Attempts this week", value: insights?.leetcodeWeekly ?? 0 },
+                  { label: "Last 12 months (incl. failed)", value: insights?.leetcodeTotal ?? 0 },
+                  { label: "Username", value: `${user?.leetcodeUsername}`, mono: true },
+                ]}
+                lastActive={insights?.lastLeetcode?.date}
+                delay={360}
+              />
+            )}
+            {user?.tryhackmeUsername && (
+              <ActivityPanel
+                title="TryHackMe activity"
+                accent="danger"
+                icon={<TryHackMeIcon />}
+                rows={[
+                  { label: "Rooms this week", value: insights?.tryhackmeWeekly ?? 0 },
+                  { label: "Last 12 months", value: insights?.tryhackmeTotal ?? 0 },
+                  { label: "Username", value: user.tryhackmeUsername, mono: true },
+                ]}
+                lastActive={insights?.lastTryhackme?.date}
+                delay={420}
+              />
+            )}
           </div>
         </>
       )}
@@ -494,6 +532,14 @@ const ActivityPanel = ({ title, icon, accent, rows, lastActive, delay }) => (
       </span>
     </div>
   </div>
+);
+
+const TryHackMeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M12 2L2 7l10 5 10-5-10-5z" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2 17l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
 );
 
 export default Dashboard;

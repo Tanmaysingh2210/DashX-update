@@ -9,9 +9,7 @@
   padding-bottom: var(--space-1);
 }
 
-.heatmap__scroll::-webkit-scrollbar {
-  height: 6px;
-}
+.heatmap__scroll::-webkit-scrollbar { height: 6px; }
 
 /* ── month row ── */
 
@@ -73,12 +71,10 @@
   width: 14px;
   height: 14px;
   border-radius: 3px;
-  background-color: var(--color-surface-high);
   opacity: 0;
   animation: cellIn var(--duration-base) var(--ease-out) forwards;
-  transition:
-    transform var(--duration-fast) var(--ease-out),
-    outline   var(--duration-fast) var(--ease-out);
+  transition: transform var(--duration-fast) var(--ease-out),
+              outline   var(--duration-fast) var(--ease-out);
   cursor: pointer;
 }
 
@@ -94,42 +90,55 @@
   z-index: 2;
 }
 
-.heatmap__cell--future {
-  visibility: hidden;
-}
+.heatmap__cell--future { visibility: hidden; }
 
 /* ── empty ── */
-/* ── empty cells — desaturated grayish-purple, clearly distinct from active ── */
-.heatmap__cell--empty {
-  background-color: #1c1a2e;   /* muted cool gray-purple — no color commitment */
-}
- 
-/* Also update surface-high for the base cell in variables.css if needed */
-/* --color-surface-high: #1c1a2e; */
- 
-/* ── GitHub only — green scale (UNCHANGED) ── */
+.heatmap__cell--empty { background-color: #1c1a2e; }
+
+/* ── GitHub only — green scale (unchanged) ── */
 .heatmap__cell--github-1 { background-color: #1a3d1f; }
 .heatmap__cell--github-2 { background-color: #25582c; }
 .heatmap__cell--github-3 { background-color: #38883f; }
 .heatmap__cell--github-4 { background-color: #7bdb80; }
- 
-/* ── LeetCode only — orange scale (UNCHANGED) ── */
+
+/* ── LeetCode only — orange scale (unchanged) ── */
 .heatmap__cell--leetcode-1 { background-color: #3d2a0f; }
 .heatmap__cell--leetcode-2 { background-color: #6b430f; }
 .heatmap__cell--leetcode-3 { background-color: #c47b1a; }
 .heatmap__cell--leetcode-4 { background-color: #ffb867; }
- 
-/* ── Both — purple scale — FIXED for contrast ──
-   Key change:
-   - both-1: was #2d1f4a (too close to empty), now a saturated mid-purple
-   - both-2: brighter step
-   - both-3: vivid purple
-   - both-4: full bright violet
-   Each step is clearly distinguishable from the previous one.           ── */
-.heatmap__cell--both-1 { background-color: #4a2d7a; }   /* saturated deep purple — clearly not empty */
-.heatmap__cell--both-2 { background-color: #6d35b8; }   /* medium purple */
-.heatmap__cell--both-3 { background-color: #9333ea; }   /* vivid purple */
-.heatmap__cell--both-4 { background-color: #c084fc; }   
+
+/* ── TryHackMe only — red scale ──
+   THM's brand color is red (#c11111) — we use a desaturated dark-to-bright red  ── */
+.heatmap__cell--tryhackme-1 { background-color: #3d1010; }
+.heatmap__cell--tryhackme-2 { background-color: #7a1f1f; }
+.heatmap__cell--tryhackme-3 { background-color: #b83030; }
+.heatmap__cell--tryhackme-4 { background-color: #e05252; }
+
+/* ── GitHub + LeetCode — purple scale (unchanged) ── */
+.heatmap__cell--both-1 { background-color: #4a2d7a; }
+.heatmap__cell--both-2 { background-color: #6d35b8; }
+.heatmap__cell--both-3 { background-color: #9333ea; }
+.heatmap__cell--both-4 { background-color: #c084fc; }
+
+/* ── GitHub + TryHackMe — teal scale ── */
+.heatmap__cell--gh-thm-1 { background-color: #0f3030; }
+.heatmap__cell--gh-thm-2 { background-color: #1a5555; }
+.heatmap__cell--gh-thm-3 { background-color: #217a7a; }
+.heatmap__cell--gh-thm-4 { background-color: #2aadad; }
+
+/* ── LeetCode + TryHackMe — pink/magenta scale ── */
+.heatmap__cell--lc-thm-1 { background-color: #3d1030; }
+.heatmap__cell--lc-thm-2 { background-color: #7a1a5a; }
+.heatmap__cell--lc-thm-3 { background-color: #b82585; }
+.heatmap__cell--lc-thm-4 { background-color: #e040b0; }
+
+/* ── All three platforms — bright white/gold ── */
+.heatmap__cell--all-1 { background-color: #3d3520; }
+.heatmap__cell--all-2 { background-color: #7a6a30; }
+.heatmap__cell--all-3 { background-color: #c4a840; }
+.heatmap__cell--all-4 { background-color: #f0d060; }
+
+/* ── footer ── */
 
 .heatmap__footer {
   display: flex;
@@ -173,7 +182,7 @@
 .heatmap__legend {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--space-4);
   font-size: var(--fs-label-md);
   color: var(--color-outline);
   flex-wrap: wrap;
@@ -202,22 +211,22 @@
   opacity: 1;
 }
 
-/* ── dot helpers ── */
+/* ── dots ── */
 
 .dot {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
+  flex-shrink: 0;
 }
 
-.dot--github   { background-color: var(--color-secondary); } /* green */
-.dot--leetcode { background-color: var(--color-tertiary);  } /* orange */
-.dot--combined { background-color: var(--color-primary);   } /* purple */
+.dot--github    { background-color: #7bdb80; }
+.dot--leetcode  { background-color: #ffb867; }
+.dot--tryhackme { background-color: #e05252; }
+.dot--combined  { background-color: #c084fc; }
 
-/* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════════════════════════ */
+/* ── responsive ── */
 
 @media (max-width: 900px) {
   .heatmap__footer {
@@ -225,9 +234,7 @@
     align-items: flex-start;
     gap: var(--space-3);
   }
-  .heatmap__legend {
-    gap: var(--space-4);
-  }
+  .heatmap__legend { gap: var(--space-3); }
 }
 
 @media (max-width: 600px) {

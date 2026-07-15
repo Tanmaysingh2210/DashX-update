@@ -12,51 +12,99 @@
   gap: var(--space-1);
 }
 
-.settings-grid {
+/* ── platform grid — 4 cards in a row ── */
+
+.settings-platforms {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-6);
   align-items: start;
 }
 
+/* ── bottom row ── */
+
 .settings-grid--bottom {
+  display: grid;
   grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-6);
 }
 
-/* ── profile cards ── */
+/* ── platform cards ── */
 
-.profile-card {
+.platform-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
-.profile-card__top {
+.platform-card--danger {
+  border-color: rgba(224, 82, 82, 0.2);
+}
+
+.platform-card--tertiary {
+  border-color: rgba(255, 184, 103, 0.18);
+}
+
+.platform-card--secondary {
+  border-color: rgba(123, 219, 128, 0.18);
+}
+
+.platform-card__top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-2);
 }
 
-.profile-card__divider {
+.platform-card__divider {
   height: 1px;
   background-color: var(--border-subtle);
-  margin: var(--space-4) 0;
+  margin: var(--space-3) 0;
 }
 
-.profile-card__row {
+.platform-card__row {
   display: flex;
   justify-content: space-between;
-  margin-bottom: var(--space-4);
+  align-items: center;
+  margin-bottom: var(--space-3);
 }
 
-.profile-card__form {
+.platform-card__form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-/* ── preferences ── */
+.platform-card__msg {
+  font-size: var(--fs-body-md);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.platform-card__msg--success {
+  background-color: rgba(123, 219, 128, 0.1);
+  color: var(--color-secondary);
+}
+
+.platform-card__msg--error {
+  background-color: rgba(255, 180, 171, 0.1);
+  color: var(--color-error);
+}
+
+/* TryHackMe connect button — red accent */
+.settings-page__thm-btn {
+  background-color: transparent;
+  border: 1px solid rgba(224, 82, 82, 0.4);
+  color: #e05252;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.settings-page__thm-btn:hover:not(:disabled) {
+  background-color: rgba(224, 82, 82, 0.1);
+  border-color: #e05252;
+}
+
+/* ── preferences card ── */
 
 .preferences-card {
   display: flex;
@@ -100,6 +148,11 @@
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
+.switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .switch__thumb {
   position: absolute;
   top: 2px;
@@ -109,7 +162,7 @@
   border-radius: var(--radius-full);
   background-color: var(--color-on-surface);
   transition: transform var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
+              background-color var(--duration-fast) var(--ease-out);
 }
 
 .switch--on {
@@ -128,6 +181,29 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.sync-card__public-url {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface-lowest);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.sync-card__url-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sync-card__url {
+  font-size: var(--fs-code-sm);
+  color: var(--color-primary);
+  word-break: break-all;
 }
 
 .sync-card__message {
@@ -166,41 +242,36 @@
   align-items: baseline;
 }
 
+.status-card__platforms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.platform-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .status-card__note {
   color: var(--color-on-surface-variant);
 }
 
 /* ── responsive ── */
 
-@media (max-width: 1024px) {
-
-  .settings-grid,
-  .settings-grid--bottom {
-    grid-template-columns: 1fr;
+@media (max-width: 1200px) {
+  .settings-platforms {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
-
-
-.sync-card__public-url {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface-lowest);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-}
-
-.sync-card__url-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.sync-card__url {
-  font-size: var(--fs-code-sm);
-  color: var(--color-primary);
-  word-break: break-all;
+@media (max-width: 768px) {
+  .settings-platforms,
+  .settings-grid--bottom {
+    grid-template-columns: 1fr;
+  }
 }

@@ -4,6 +4,15 @@
   gap: var(--space-3);
 }
 
+.stat-card__icon--danger {
+  background-color: rgba(224, 82, 82, 0.12);
+  color: var(--color-danger);
+}
+
+.stat-card__sub--danger {
+  color: var(--color-danger);
+}
+
 .stat-card__top {
   display: flex;
   align-items: flex-start;

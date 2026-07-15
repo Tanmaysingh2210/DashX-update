@@ -49,11 +49,8 @@ const AuthCallback = () => {
                     user_type: user.isSetupComplete ? "returning" : "new",
                 });
 
-                if (!user.isSetupComplete) {
-                    navigate("/setup", { replace: true });
-                } else {
-                    navigate("/dashboard", { replace: true });
-                }
+
+                navigate("/dashboard", { replace: true });
             } catch (err) {
                 console.error("[AuthCallback] error:", err);
                 navigate("/?error=auth_failed", { replace: true });
