@@ -52,8 +52,11 @@ export const fetchTryHackMeUserId = async (username) => {
   }
 
   const json = await res.json();
+  
+  console.log(`[TryHackMe] API response for ${username}:`, JSON.stringify(json, null, 2));
 
   if (!json.success || !json.user?._id) {
+    console.error(`[TryHackMe] Invalid response structure. Expected success=true and user._id to exist. Got:`, json);
     throw new Error(`TryHackMe user "${username}" not found`);
   }
 
@@ -181,9 +184,12 @@ export const fetchCurrentYearTryHackMeActivity = async (username, thmUserId) => 
  */
 export const validateTryHackMeUsername = async (username) => {
   try {
+    console.log(`[TryHackMe] validateTryHackMeUsername called for: ${username}`);
     const { userId } = await fetchTryHackMeUserId(username);
+    console.log(`[TryHackMe] User validation successful. userId: ${userId}`);
     return { valid: true, userId };
-  } catch {
+  } catch (err) {
+    console.error(`[TryHackMe] User validation failed:`, err.message);
     return { valid: false, userId: null };
   }
 };

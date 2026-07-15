@@ -17,7 +17,7 @@ import {
 } from "../components/Icons";
 import "./Dashboard.css";
 import { ShareIcon } from "../assets/Icons";
-import ConnectPlatformsBanner from "../components/connectPlatformsBanner";
+import ConnectPlatformsBanner from "../components/ConnectPlatformsBanner";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

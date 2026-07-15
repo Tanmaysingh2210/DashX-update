@@ -17,7 +17,7 @@ import Activity from "../models/Activity.js";
  * Output shape: [{ date, githubCount, leetcodeCount, totalCount }]
  * Only returns days where totalCount > 0 — zero days are never stored.
  */
-export const mergeDays = (githubDays, leetcodeDays) => {
+export const mergeDays = (githubDays = [], leetcodeDays= [], tryhackmeDays = []) => {
   const map = new Map();
 
   for (const { date, count } of githubDays) {
@@ -45,7 +45,7 @@ export const mergeDays = (githubDays, leetcodeDays) => {
   }
 
   return Array.from(map.entries())
-    .map(([date, { githubCount, leetcodeCount }]) => ({
+    .map(([date, { githubCount, leetcodeCount, tryhackmeCount }]) => ({
       date,
       githubCount,
       leetcodeCount,
@@ -182,6 +182,7 @@ const fetchFromAllPlatforms = async (
     sourceErrors.leetcode = leetcodeResult.reason?.message || "Unknown LeetCode error";
     console.error(`[Sync] LeetCode fetch failed:`, sourceErrors.leetcode);
   }
+
   if (tryhackmeResult.status === "rejected") sourceErrors.tryhackme = tryhackmeResult.reason?.message;
 
   if (githubResult.status === "rejected" && leetcodeResult.status === "rejected" && tryhackmeResult.status === "rejected") {

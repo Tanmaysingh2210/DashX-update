@@ -166,14 +166,19 @@ export const connectLeetCode = async (req, res) => {
 export const connectTryHackMe = async (req, res) => {
   try {
     const { tryhackmeUsername } = req.body;
+    console.log(`[Auth] connectTryHackMe called with username: ${tryhackmeUsername}`);
+    
     if (!tryhackmeUsername) {
       return res.status(400).json({ success: false, message: "tryhackmeUsername is required" });
     }
 
     const cleaned = tryhackmeUsername.trim();
+    console.log(`[Auth] Validating cleaned username: ${cleaned}`);
 
     // validate + get internal ID in one call
     const { valid, userId: thmUserId } = await validateTryHackMeUsername(cleaned);
+    console.log(`[Auth] Validation result - valid: ${valid}, userId: ${thmUserId}`);
+    
     if (!valid) {
       return res.status(400).json({
         success: false,
