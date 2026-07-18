@@ -5,6 +5,8 @@
  * The v2 public-profile endpoints are publicly accessible without
  * any bot protection, so plain HTTP requests work fine.
  *
+ * Includes retry logic with exponential backoff for 429 rate-limit responses.
+ *
  * Endpoints used:
  *   - GET /api/v2/public-profile?username={username}
  *     Returns user info: avatar, level, country, totalPoints, etc.
@@ -25,17 +27,43 @@ const THM_HEADERS = {
   Accept: "application/json",
 };
 
-// ─── helper — fetch JSON from a THM API endpoint ────────────────────────────
+// ─── helper — sleep utility ─────────────────────────────────────────────────
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ─── helper — fetch JSON from a THM API endpoint with retry ─────────────────
 
 /**
  * Fetches JSON from a TryHackMe API endpoint using plain fetch().
+ * Automatically retries on 429 (rate-limited) responses with exponential backoff.
  *
- * @param {string} apiPath - API path e.g. "/api/v2/public-profile?username=X"
+ * @param {string} apiPath  - API path e.g. "/api/v2/public-profile?username=X"
+ * @param {number} retries  - Number of retries remaining (default: 3)
  * @returns {Promise<object>} - Parsed JSON from the API
  */
-const fetchFromTHM = async (apiPath) => {
+const fetchFromTHM = async (apiPath, retries = 3) => {
   const url = `${THM_BASE}${apiPath}`;
   const resp = await fetch(url, { headers: THM_HEADERS });
+
+  if (resp.status === 429) {
+    if (retries <= 0) {
+      const err = new Error("TryHackMe rate limit exceeded. Please try again in a minute.");
+      err.code = "RATE_LIMITED";
+      throw err;
+    }
+
+    // Use Retry-After header if present, otherwise exponential backoff
+    const retryAfter = resp.headers.get("retry-after");
+    const waitMs = retryAfter
+      ? parseInt(retryAfter, 10) * 1000
+      : (4 - retries) * 2000; // 2s, 4s, 6s
+
+    console.log(
+      `[TryHackMe] Rate limited (429). Retrying in ${waitMs}ms… (${retries} retries left)`
+    );
+    await sleep(waitMs);
+    return fetchFromTHM(apiPath, retries - 1);
+  }
 
   if (!resp.ok) {
     throw new Error(`TryHackMe API error ${resp.status} for ${apiPath}`);
@@ -176,7 +204,7 @@ export const fetchCurrentYearTryHackMeActivity = async (
 
 /**
  * Quick check: does this username exist on TryHackMe?
- * Returns { valid: boolean, userId: string|null }
+ * Returns { valid: boolean, userId: string|null, rateLimited: boolean }
  */
 export const validateTryHackMeUsername = async (username) => {
   try {
@@ -185,9 +213,13 @@ export const validateTryHackMeUsername = async (username) => {
     );
     const { userId } = await fetchTryHackMeUserId(username);
     console.log(`[TryHackMe] User validation successful. userId: ${userId}`);
-    return { valid: true, userId };
+    return { valid: true, userId, rateLimited: false };
   } catch (err) {
     console.error(`[TryHackMe] User validation failed:`, err.message);
-    return { valid: false, userId: null };
+    return {
+      valid: false,
+      userId: null,
+      rateLimited: err.code === "RATE_LIMITED",
+    };
   }
 };

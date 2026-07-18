@@ -176,10 +176,16 @@ export const connectTryHackMe = async (req, res) => {
     console.log(`[Auth] Validating cleaned username: ${cleaned}`);
 
     // validate + get internal ID in one call
-    const { valid, userId: thmUserId } = await validateTryHackMeUsername(cleaned);
-    console.log(`[Auth] Validation result - valid: ${valid}, userId: ${thmUserId}`);
+    const { valid, userId: thmUserId, rateLimited } = await validateTryHackMeUsername(cleaned);
+    console.log(`[Auth] Validation result - valid: ${valid}, userId: ${thmUserId}, rateLimited: ${rateLimited}`);
     
     if (!valid) {
+      if (rateLimited) {
+        return res.status(429).json({
+          success: false,
+          message: "TryHackMe is temporarily rate-limiting requests. Please wait a minute and try again.",
+        });
+      }
       return res.status(400).json({
         success: false,
         message: `TryHackMe user "${cleaned}" not found. Check your username and try again.`,
