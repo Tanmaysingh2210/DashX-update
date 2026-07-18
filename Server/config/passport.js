@@ -1,6 +1,7 @@
 import passport from "passport";
 import { Strategy } from "passport-github2";
 import User from "../models/User.js";
+import { syncUserActivity } from "../services/activityService.js";
 
 passport.use(
   new Strategy(
@@ -32,13 +33,27 @@ passport.use(
           user.email = email;
           await user.save();
         } else {
-          // first time login — create new user
+          // first time login — create new user with sync already in progress
           user = await User.create({
             githubId,
             githubUsername,
             avatar,
             email,
+            syncStatus: "syncing",
           });
+
+          // Fire-and-forget background sync for GitHub data.
+          // No LeetCode/TryHackMe connected yet — just pull GitHub contributions
+          // so the dashboard has data to show immediately after registration.
+          syncUserActivity(user._id, githubUsername, null, null, null, null)
+            .then(async () => {
+              await User.findByIdAndUpdate(user._id, { syncStatus: "done" });
+              console.log(`[Passport] Initial GitHub sync complete for ${githubUsername}`);
+            })
+            .catch(async (err) => {
+              await User.findByIdAndUpdate(user._id, { syncStatus: "failed" });
+              console.error(`[Passport] Initial GitHub sync failed:`, err.message);
+            });
         }
 
         return done(null, user);

@@ -39,7 +39,7 @@ const formatRelative = (dateStr) => {
 const SYNC_STEPS = [
   "Connecting to GitHub…",
   "Fetching contribution history…",
-  "Pulling LeetCode submissions…",
+  "Scanning connected platforms…",
   "Merging activity data…",
   "Calculating streaks…",
 ];
@@ -315,8 +315,8 @@ const Dashboard = () => {
             <div className="dashboard__sync-spinner" />
             <h2 className="headline-md">Setting up your dashboard</h2>
             <p className="body-md">
-              We're pulling your GitHub and LeetCode history. This usually
-              takes 15–30 seconds.
+              We're pulling your contribution history from all connected
+              platforms. This usually takes 15–30 seconds.
             </p>
 
             {/* progress bar */}

@@ -3,177 +3,281 @@
  *
  * TryHackMe's API situation:
  *   - No official public API for user stats
- *   - Unofficial endpoint: GET /api/v2/public-profile/completed-rooms?user={hashId}&limit=100&page=1
- *   - Requires a MongoDB hash user ID (not username)
- *   - Username → hashId lookup: GET /api/user/exist?username={username}  (returns user object with _id)
- *   - Cloudflare protection — must send browser-like headers
+ *   - Vercel/Cloudflare bot protection blocks plain fetch() calls
+ *   - Must use Puppeteer to load the profile page and then fetch APIs
+ *     from within the browser context (already past the challenge)
+ *
+ * Endpoints used (discovered via network interception):
+ *   - GET /api/v2/public-profile?username={username}
+ *     Returns user info: avatar, level, country, totalPoints, etc.
+ *   - GET /api/v2/public-profile/yearly-activity?username={username}&year={YYYY}
+ *     Returns per-day activity counts (machines started, questions answered, etc.)
+ *     Same data that powers TryHackMe's profile heatmap.
  *
  * Activity format output:
  *   [{ date: "YYYY-MM-DD", count: N }]
- *   where count = number of rooms completed on that date
- *
- * Unlike GitHub/LeetCode which give per-day submission counts,
- * TryHackMe gives per-room completion timestamps.
- * We group completions by day to get the same format.
+ *   where count = activity events on that date
  */
+
+import puppeteer from "puppeteer";
 
 const THM_BASE = "https://tryhackme.com";
 
-// browser-like headers to pass Cloudflare
-const THM_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-  Accept: "application/json, text/plain, */*",
-  "Accept-Language": "en-US,en;q=0.9",
-  Referer: "https://tryhackme.com/",
-  Origin: "https://tryhackme.com",
+// ─── shared browser instance ────────────────────────────────────────────────
+// Reuse a single browser to avoid spawning a new Chromium per request.
+
+let _browser = null;
+
+const getBrowser = async () => {
+  if (!_browser || !_browser.connected) {
+    _browser = await puppeteer.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
+    });
+  }
+  return _browser;
 };
 
-// ─── step 1 — username → hash ID ────────────────────────────────────────────
+// ─── helper — open a THM page and run fetch() from inside it ────────────────
 
 /**
- * Looks up a TryHackMe username and returns the internal hash user ID.
- * This ID is needed to call the completed-rooms endpoint.
+ * Opens a TryHackMe profile page in Puppeteer (to pass the Vercel challenge),
+ * then runs an in-browser fetch() to call their API.
+ * This works because once Puppeteer passes the challenge, the page context
+ * is authorized to call THM APIs.
  *
- * Endpoint: GET /api/user/exist?username={username}
- * Returns: { success: true, user: { _id, username, ... } }
+ * @param {string} username   - THM username (needed to navigate to profile)
+ * @param {string} apiPath    - API path e.g. "/api/v2/public-profile?username=X"
+ * @param {number} timeout    - Max wait time in ms
+ * @returns {Promise<object>} - Parsed JSON from the API
+ */
+const fetchFromTHM = async (username, apiPath, timeout = 30000) => {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  );
+
+  // block images/fonts/css to speed things up
+  await page.setRequestInterception(true);
+  page.on("request", (req) => {
+    const type = req.resourceType();
+    if (["image", "font", "stylesheet", "media"].includes(type)) {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
+
+  try {
+    // navigate to the profile page to pass the Vercel challenge
+    await page.goto(`${THM_BASE}/r/p/${encodeURIComponent(username)}`, {
+      waitUntil: "networkidle2",
+      timeout,
+    });
+
+    // now fetch the API from within the page context
+    const result = await page.evaluate(async (path) => {
+      const resp = await fetch(path);
+      if (!resp.ok) {
+        return { _error: true, status: resp.status };
+      }
+      return resp.json();
+    }, apiPath);
+
+    if (result?._error) {
+      throw new Error(`TryHackMe API error ${result.status}`);
+    }
+
+    return result;
+  } finally {
+    await page.close();
+  }
+};
+
+/**
+ * Opens a THM profile page once and runs multiple in-browser fetches.
+ * More efficient than opening a new page for each API call.
+ */
+const fetchMultipleFromTHM = async (username, apiPaths, timeout = 30000) => {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  );
+
+  await page.setRequestInterception(true);
+  page.on("request", (req) => {
+    const type = req.resourceType();
+    if (["image", "font", "stylesheet", "media"].includes(type)) {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
+
+  try {
+    await page.goto(`${THM_BASE}/r/p/${encodeURIComponent(username)}`, {
+      waitUntil: "networkidle2",
+      timeout,
+    });
+
+    // run all fetches from within the page context
+    const results = await page.evaluate(async (paths) => {
+      const out = [];
+      for (const path of paths) {
+        try {
+          const resp = await fetch(path);
+          if (!resp.ok) {
+            out.push({ _error: true, status: resp.status, path });
+          } else {
+            out.push(await resp.json());
+          }
+        } catch (e) {
+          out.push({ _error: true, message: e.message, path });
+        }
+      }
+      return out;
+    }, apiPaths);
+
+    return results;
+  } finally {
+    await page.close();
+  }
+};
+
+// ─── validate username via public profile API ───────────────────────────────
+
+/**
+ * Validates a TryHackMe username by loading their profile page
+ * and calling the public-profile API.
  *
  * @param {string} username
  * @returns {Promise<{ userId: string, avatar: string|null }>}
  * @throws if user not found or request fails
  */
 export const fetchTryHackMeUserId = async (username) => {
-  const url = `${THM_BASE}/api/user/exist?username=${encodeURIComponent(username)}`;
+  console.log(`[TryHackMe] Fetching profile for: ${username}`);
 
-  const res = await fetch(url, { headers: THM_HEADERS });
+  const json = await fetchFromTHM(
+    username,
+    `/api/v2/public-profile?username=${encodeURIComponent(username)}`
+  );
 
-  if (!res.ok) {
-    throw new Error(`TryHackMe API error ${res.status}`);
-  }
-
-  const json = await res.json();
-  
-  console.log(`[TryHackMe] API response for ${username}:`, JSON.stringify(json, null, 2));
-
-  if (!json.success || !json.user?._id) {
-    console.error(`[TryHackMe] Invalid response structure. Expected success=true and user._id to exist. Got:`, json);
+  if (json.status !== "success" || !json.data?.username) {
     throw new Error(`TryHackMe user "${username}" not found`);
   }
 
+  console.log(
+    `[TryHackMe] Found user: ${json.data.username}, level: ${json.data.level}`
+  );
+
   return {
-    userId:  json.user._id,
-    avatar:  json.user.avatar || null,
-    level:   json.user.userLevel || null,
-    points:  json.user.points || 0,
+    userId: json.data.username, // API now uses username directly, no hash ID needed
+    avatar: json.data.avatar || null,
+    level: json.data.level || null,
+    points: json.data.totalPoints || 0,
   };
 };
 
-// ─── step 2 — fetch all completed rooms ─────────────────────────────────────
+// ─── fetch yearly activity ──────────────────────────────────────────────────
 
 /**
- * Fetches all completed rooms for a TryHackMe user.
- * Paginates automatically — THM returns 16 rooms per page by default,
- * we use limit=100 to reduce requests.
+ * Fetches all TryHackMe activity by querying the yearly-activity endpoint
+ * for each relevant year. This is the same data that powers THM's profile heatmap.
  *
- * Each room has a `completed` field: ISO date string of completion time.
+ * Activity events include: machines started, questions answered, file downloads.
  *
- * @param {string} thmUserId - MongoDB hash ID from fetchTryHackMeUserId
- * @returns {Promise<Array<{ roomCode: string, title: string, completedAt: string }>>}
- */
-const fetchAllCompletedRooms = async (thmUserId) => {
-  const allRooms = [];
-  let page = 1;
-  let hasMore = true;
-  const LIMIT = 100;
-
-  while (hasMore) {
-    const url = `${THM_BASE}/api/v2/public-profile/completed-rooms?user=${thmUserId}&limit=${LIMIT}&page=${page}`;
-
-    const res = await fetch(url, { headers: THM_HEADERS });
-
-    if (!res.ok) {
-      if (res.status === 404) break; // no more pages
-      throw new Error(`TryHackMe rooms API error ${res.status}`);
-    }
-
-    const json = await res.json();
-
-    if (!json.data?.rooms || json.data.rooms.length === 0) {
-      hasMore = false;
-      break;
-    }
-
-    allRooms.push(...json.data.rooms);
-
-    // check pagination
-    const { totalPages } = json.data.paginator || {};
-    hasMore = totalPages ? page < totalPages : json.data.rooms.length === LIMIT;
-    page++;
-
-    // small delay between pages to be polite to their servers
-    if (hasMore) await new Promise((r) => setTimeout(r, 300));
-  }
-
-  return allRooms;
-};
-
-// ─── step 3 — group rooms by completion date ────────────────────────────────
-
-/**
- * Groups room completions by date (YYYY-MM-DD).
- * Each day's count = number of rooms completed on that day.
- *
- * @param {Array} rooms - from fetchAllCompletedRooms
- * @returns {Array<{ date: string, count: number }>} sorted ascending
- */
-const groupRoomsByDate = (rooms) => {
-  const dayMap = new Map();
-
-  for (const room of rooms) {
-    // TryHackMe returns completed date in various fields
-    const completedAt = room.completed || room.completedAt || room.completionDate;
-    if (!completedAt) continue;
-
-    const date = new Date(completedAt).toISOString().split("T")[0];
-    dayMap.set(date, (dayMap.get(date) || 0) + 1);
-  }
-
-  return Array.from(dayMap.entries())
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => (a.date > b.date ? 1 : -1));
-};
-
-// ─── main export — fetch all TryHackMe activity ─────────────────────────────
-
-/**
- * Fetches all TryHackMe room completion activity for a user.
- *
- * @param {string} username      - TryHackMe username (for logging)
- * @param {string} thmUserId     - TryHackMe internal hash ID (stored on User model)
+ * @param {string} username      - TryHackMe username
+ * @param {string} thmUserId     - kept for API compat (now unused, username is enough)
  * @returns {Promise<Array<{ date: string, count: number }>>}
  */
 export const fetchAllTryHackMeActivity = async (username, thmUserId) => {
-  console.log(`[TryHackMe] fetching completed rooms for: ${username} (id: ${thmUserId})`);
+  console.log(`[TryHackMe] fetching yearly activity for: ${username}`);
 
-  const rooms = await fetchAllCompletedRooms(thmUserId);
-  const days  = groupRoomsByDate(rooms);
+  const currentYear = new Date().getFullYear();
+  // Fetch current year + 2 previous years to get a good history
+  const years = [currentYear - 2, currentYear - 1, currentYear];
 
-  console.log(`[TryHackMe] done. ${rooms.length} rooms → ${days.length} active days`);
-  return days;
+  const apiPaths = years.map(
+    (y) =>
+      `/api/v2/public-profile/yearly-activity?username=${encodeURIComponent(
+        username
+      )}&year=${y}`
+  );
+
+  const results = await fetchMultipleFromTHM(username, apiPaths);
+
+  const allDays = [];
+  for (let i = 0; i < results.length; i++) {
+    const json = results[i];
+    if (json._error) {
+      console.error(
+        `[TryHackMe] Failed to fetch year ${years[i]}: ${json.status || json.message}`
+      );
+      continue;
+    }
+
+    if (json.status === "success" && json.data?.yearlyActivity) {
+      const activeDays = json.data.yearlyActivity
+        .filter((d) => d.count > 0)
+        .map((d) => ({ date: d.date, count: d.count }));
+
+      allDays.push(...activeDays);
+      console.log(
+        `[TryHackMe] ${years[i]}: ${activeDays.length} active days`
+      );
+    }
+  }
+
+  // sort ascending by date
+  allDays.sort((a, b) => (a.date > b.date ? 1 : -1));
+
+  console.log(
+    `[TryHackMe] done. ${allDays.length} total active days`
+  );
+  return allDays;
 };
 
 // ─── incremental — current year only ────────────────────────────────────────
 
 /**
- * Filters to only return days from the current year.
- * TryHackMe doesn't have a year-filter API so we fetch all and filter.
- * For large accounts this isn't ideal, but room counts are small
- * (typical user: <200 rooms total, ~2-3 pages).
+ * Fetches only the current year's activity.
  */
-export const fetchCurrentYearTryHackMeActivity = async (username, thmUserId) => {
-  const allDays   = await fetchAllTryHackMeActivity(username, thmUserId);
-  const thisYear  = new Date().getFullYear().toString();
-  return allDays.filter((d) => d.date.startsWith(thisYear));
+export const fetchCurrentYearTryHackMeActivity = async (
+  username,
+  thmUserId
+) => {
+  console.log(`[TryHackMe] fetching current year activity for: ${username}`);
+
+  const currentYear = new Date().getFullYear();
+  const json = await fetchFromTHM(
+    username,
+    `/api/v2/public-profile/yearly-activity?username=${encodeURIComponent(
+      username
+    )}&year=${currentYear}`
+  );
+
+  if (json.status !== "success" || !json.data?.yearlyActivity) {
+    console.error(`[TryHackMe] Failed to fetch year ${currentYear}`);
+    return [];
+  }
+
+  const activeDays = json.data.yearlyActivity
+    .filter((d) => d.count > 0)
+    .map((d) => ({ date: d.date, count: d.count }));
+
+  console.log(
+    `[TryHackMe] ${currentYear}: ${activeDays.length} active days`
+  );
+  return activeDays;
 };
 
 // ─── utility — validate a TryHackMe username ────────────────────────────────
@@ -184,7 +288,9 @@ export const fetchCurrentYearTryHackMeActivity = async (username, thmUserId) => 
  */
 export const validateTryHackMeUsername = async (username) => {
   try {
-    console.log(`[TryHackMe] validateTryHackMeUsername called for: ${username}`);
+    console.log(
+      `[TryHackMe] validateTryHackMeUsername called for: ${username}`
+    );
     const { userId } = await fetchTryHackMeUserId(username);
     console.log(`[TryHackMe] User validation successful. userId: ${userId}`);
     return { valid: true, userId };

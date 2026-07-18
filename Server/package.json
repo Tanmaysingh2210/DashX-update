@@ -20,6 +20,7 @@
     "mongoose": "^9.7.0",
     "node-cron": "^4.5.0",
     "passport": "^0.7.0",
-    "passport-github2": "^0.1.12"
+    "passport-github2": "^0.1.12",
+    "puppeteer": "^25.3.0"
   }
 }
