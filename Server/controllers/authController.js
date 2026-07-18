@@ -2,7 +2,6 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { syncUserActivity } from "../services/activityService.js";
 import { extractLeetCodeUsername } from "../utils/sanitize.js";
-import { validateTryHackMeUsername, fetchTryHackMeUserId } from "../services/tryhackmeService.js";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -159,8 +158,14 @@ export const connectLeetCode = async (req, res) => {
 
 /**
  * Connects the user's TryHackMe account.
- * Looks up the internal THM user ID (needed for their API) and stores it.
- * Triggers background sync after saving.
+ *
+ * TryHackMe aggressively rate-limits API calls from datacenter IPs (like Render),
+ * so we skip real-time validation. Instead:
+ *   1. Basic username format check (no API call)
+ *   2. Save immediately → user sees "Connected" right away
+ *   3. Background sync attempts to fetch activity data from THM
+ *   4. If sync fails (rate limit / bad username), the hourly auto-sync retries
+ *
  * Body: { tryhackmeUsername: string }
  */
 export const connectTryHackMe = async (req, res) => {
@@ -173,30 +178,22 @@ export const connectTryHackMe = async (req, res) => {
     }
 
     const cleaned = tryhackmeUsername.trim();
-    console.log(`[Auth] Validating cleaned username: ${cleaned}`);
 
-    // validate + get internal ID in one call
-    const { valid, userId: thmUserId, rateLimited } = await validateTryHackMeUsername(cleaned);
-    console.log(`[Auth] Validation result - valid: ${valid}, userId: ${thmUserId}, rateLimited: ${rateLimited}`);
-    
-    if (!valid) {
-      if (rateLimited) {
-        return res.status(429).json({
-          success: false,
-          message: "TryHackMe is temporarily rate-limiting requests. Please wait a minute and try again.",
-        });
-      }
+    // Basic format validation (no API call) — THM usernames are alphanumeric + underscores/hyphens
+    if (cleaned.length < 2 || cleaned.length > 40 || !/^[a-zA-Z0-9_-]+$/.test(cleaned)) {
       return res.status(400).json({
         success: false,
-        message: `TryHackMe user "${cleaned}" not found. Check your username and try again.`,
+        message: "Invalid TryHackMe username format. Usernames can only contain letters, numbers, underscores, and hyphens.",
       });
     }
+
+    console.log(`[Auth] Saving TryHackMe username (skipping API validation): ${cleaned}`);
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
       {
         tryhackmeUsername: cleaned,
-        tryhackmeUserId: thmUserId,
+        tryhackmeUserId: cleaned, // THM v2 API uses username directly
         syncStatus: "syncing",
       },
       { new: true }
@@ -204,17 +201,19 @@ export const connectTryHackMe = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "TryHackMe connected. Syncing in background…",
+      message: "TryHackMe connected. Syncing activity in background…",
       user: formatUser(user),
     });
 
-    // background sync
+    // background sync — will attempt to fetch THM data
+    // if THM rate-limits, the sync still succeeds for other platforms
+    // and the hourly auto-sync will retry THM later
     syncUserActivity(
       user._id,
       user.githubUsername,
       user.leetcodeUsername,
       cleaned,
-      thmUserId,
+      cleaned, // userId = username for THM v2
       null // full sync for new platform
     )
       .then(async () => {
