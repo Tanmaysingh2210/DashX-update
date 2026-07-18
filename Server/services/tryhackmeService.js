@@ -1,13 +1,11 @@
 /**
  * TryHackMe Service
  *
- * TryHackMe's API situation:
- *   - No official public API for user stats
- *   - Vercel/Cloudflare bot protection blocks plain fetch() calls
- *   - Must use Puppeteer to load the profile page and then fetch APIs
- *     from within the browser context (already past the challenge)
+ * Uses TryHackMe's public API directly via fetch() — no Puppeteer needed.
+ * The v2 public-profile endpoints are publicly accessible without
+ * any bot protection, so plain HTTP requests work fine.
  *
- * Endpoints used (discovered via network interception):
+ * Endpoints used:
  *   - GET /api/v2/public-profile?username={username}
  *     Returns user info: avatar, level, country, totalPoints, etc.
  *   - GET /api/v2/public-profile/yearly-activity?username={username}&year={YYYY}
@@ -19,145 +17,37 @@
  *   where count = activity events on that date
  */
 
-import puppeteer from "puppeteer";
-
 const THM_BASE = "https://tryhackme.com";
 
-// ─── shared browser instance ────────────────────────────────────────────────
-// Reuse a single browser to avoid spawning a new Chromium per request.
-
-let _browser = null;
-
-const getBrowser = async () => {
-  if (!_browser || !_browser.connected) {
-    _browser = await puppeteer.launch({
-      headless: "new",
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
-    });
-  }
-  return _browser;
+const THM_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  Accept: "application/json",
 };
 
-// ─── helper — open a THM page and run fetch() from inside it ────────────────
+// ─── helper — fetch JSON from a THM API endpoint ────────────────────────────
 
 /**
- * Opens a TryHackMe profile page in Puppeteer (to pass the Vercel challenge),
- * then runs an in-browser fetch() to call their API.
- * This works because once Puppeteer passes the challenge, the page context
- * is authorized to call THM APIs.
+ * Fetches JSON from a TryHackMe API endpoint using plain fetch().
  *
- * @param {string} username   - THM username (needed to navigate to profile)
- * @param {string} apiPath    - API path e.g. "/api/v2/public-profile?username=X"
- * @param {number} timeout    - Max wait time in ms
+ * @param {string} apiPath - API path e.g. "/api/v2/public-profile?username=X"
  * @returns {Promise<object>} - Parsed JSON from the API
  */
-const fetchFromTHM = async (username, apiPath, timeout = 30000) => {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
+const fetchFromTHM = async (apiPath) => {
+  const url = `${THM_BASE}${apiPath}`;
+  const resp = await fetch(url, { headers: THM_HEADERS });
 
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-  );
-
-  // block images/fonts/css to speed things up
-  await page.setRequestInterception(true);
-  page.on("request", (req) => {
-    const type = req.resourceType();
-    if (["image", "font", "stylesheet", "media"].includes(type)) {
-      req.abort();
-    } else {
-      req.continue();
-    }
-  });
-
-  try {
-    // navigate to the profile page to pass the Vercel challenge
-    await page.goto(`${THM_BASE}/r/p/${encodeURIComponent(username)}`, {
-      waitUntil: "networkidle2",
-      timeout,
-    });
-
-    // now fetch the API from within the page context
-    const result = await page.evaluate(async (path) => {
-      const resp = await fetch(path);
-      if (!resp.ok) {
-        return { _error: true, status: resp.status };
-      }
-      return resp.json();
-    }, apiPath);
-
-    if (result?._error) {
-      throw new Error(`TryHackMe API error ${result.status}`);
-    }
-
-    return result;
-  } finally {
-    await page.close();
+  if (!resp.ok) {
+    throw new Error(`TryHackMe API error ${resp.status} for ${apiPath}`);
   }
-};
 
-/**
- * Opens a THM profile page once and runs multiple in-browser fetches.
- * More efficient than opening a new page for each API call.
- */
-const fetchMultipleFromTHM = async (username, apiPaths, timeout = 30000) => {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-  );
-
-  await page.setRequestInterception(true);
-  page.on("request", (req) => {
-    const type = req.resourceType();
-    if (["image", "font", "stylesheet", "media"].includes(type)) {
-      req.abort();
-    } else {
-      req.continue();
-    }
-  });
-
-  try {
-    await page.goto(`${THM_BASE}/r/p/${encodeURIComponent(username)}`, {
-      waitUntil: "networkidle2",
-      timeout,
-    });
-
-    // run all fetches from within the page context
-    const results = await page.evaluate(async (paths) => {
-      const out = [];
-      for (const path of paths) {
-        try {
-          const resp = await fetch(path);
-          if (!resp.ok) {
-            out.push({ _error: true, status: resp.status, path });
-          } else {
-            out.push(await resp.json());
-          }
-        } catch (e) {
-          out.push({ _error: true, message: e.message, path });
-        }
-      }
-      return out;
-    }, apiPaths);
-
-    return results;
-  } finally {
-    await page.close();
-  }
+  return resp.json();
 };
 
 // ─── validate username via public profile API ───────────────────────────────
 
 /**
- * Validates a TryHackMe username by loading their profile page
- * and calling the public-profile API.
+ * Validates a TryHackMe username by calling the public-profile API.
  *
  * @param {string} username
  * @returns {Promise<{ userId: string, avatar: string|null }>}
@@ -167,7 +57,6 @@ export const fetchTryHackMeUserId = async (username) => {
   console.log(`[TryHackMe] Fetching profile for: ${username}`);
 
   const json = await fetchFromTHM(
-    username,
     `/api/v2/public-profile?username=${encodeURIComponent(username)}`
   );
 
@@ -180,7 +69,7 @@ export const fetchTryHackMeUserId = async (username) => {
   );
 
   return {
-    userId: json.data.username, // API now uses username directly, no hash ID needed
+    userId: json.data.username, // API uses username directly, no hash ID needed
     avatar: json.data.avatar || null,
     level: json.data.level || null,
     points: json.data.totalPoints || 0,
@@ -206,25 +95,29 @@ export const fetchAllTryHackMeActivity = async (username, thmUserId) => {
   // Fetch current year + 2 previous years to get a good history
   const years = [currentYear - 2, currentYear - 1, currentYear];
 
-  const apiPaths = years.map(
-    (y) =>
-      `/api/v2/public-profile/yearly-activity?username=${encodeURIComponent(
-        username
-      )}&year=${y}`
+  // Fire all year requests in parallel for speed
+  const results = await Promise.allSettled(
+    years.map((y) =>
+      fetchFromTHM(
+        `/api/v2/public-profile/yearly-activity?username=${encodeURIComponent(
+          username
+        )}&year=${y}`
+      )
+    )
   );
-
-  const results = await fetchMultipleFromTHM(username, apiPaths);
 
   const allDays = [];
   for (let i = 0; i < results.length; i++) {
-    const json = results[i];
-    if (json._error) {
+    const result = results[i];
+
+    if (result.status === "rejected") {
       console.error(
-        `[TryHackMe] Failed to fetch year ${years[i]}: ${json.status || json.message}`
+        `[TryHackMe] Failed to fetch year ${years[i]}: ${result.reason?.message}`
       );
       continue;
     }
 
+    const json = result.value;
     if (json.status === "success" && json.data?.yearlyActivity) {
       const activeDays = json.data.yearlyActivity
         .filter((d) => d.count > 0)
@@ -259,7 +152,6 @@ export const fetchCurrentYearTryHackMeActivity = async (
 
   const currentYear = new Date().getFullYear();
   const json = await fetchFromTHM(
-    username,
     `/api/v2/public-profile/yearly-activity?username=${encodeURIComponent(
       username
     )}&year=${currentYear}`
