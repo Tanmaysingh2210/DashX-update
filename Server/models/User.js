@@ -67,6 +67,26 @@ const userSchema = new Schema(
       type: Boolean,
       default: true,
     },
+
+    // ── cached platform stats ──
+    // Updated during sync so the dashboard never needs to hit external APIs
+    platformStats: {
+      github: {
+        publicRepos: { type: Number, default: 0 },
+      },
+      leetcode: {
+        totalSolved: { type: Number, default: 0 },
+        easy: { type: Number, default: 0 },
+        medium: { type: Number, default: 0 },
+        hard: { type: Number, default: 0 },
+      },
+      tryhackme: {
+        roomsCompleted: { type: Number, default: null },
+        level: { type: Number, default: 0 },
+        totalPoints: { type: Number, default: 0 },
+        rank: { type: Number, default: null },
+      },
+    },
   },
   {
     timestamps: true,

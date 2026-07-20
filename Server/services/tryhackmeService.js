@@ -52,6 +52,17 @@ const fetchFromTHM = async (apiPath, retries = 3) => {
   const resp = await fetch(url, { headers: THM_HEADERS });
 
   if (resp.status === 429) {
+    // Check if the 429 is a Vercel security checkpoint (HTML, not JSON).
+    // These don't resolve with simple retries — fail fast to avoid log spam.
+    const contentType = resp.headers.get("content-type") || "";
+    if (contentType.includes("text/html")) {
+      const err = new Error(
+        "TryHackMe blocked by Vercel security checkpoint (429 HTML). Skipping."
+      );
+      err.code = "RATE_LIMITED";
+      throw err;
+    }
+
     if (retries <= 0) {
       const err = new Error(
         "TryHackMe rate limit exceeded. Please try again in a minute."
@@ -311,10 +322,21 @@ export const fetchTryHackMeProfileStats = async (username) => {
       return null;
     }
 
+    const d = json.data;
+
+    // The API has used different field names across versions — try all known ones
+    const roomsCompleted = d.roomsCompleted
+      ?? d.completedRoomsCount
+      ?? d.completedRooms
+      ?? d.rooms
+      ?? null;
+
     return {
-      roomsCompleted: json.data.roomsCompleted ?? 0,
-      level: json.data.level ?? 0,
-      totalPoints: json.data.totalPoints ?? 0,
+      roomsCompleted,
+      level: d.level ?? 0,
+      totalPoints: d.totalPoints ?? 0,
+      rank: d.rank ?? null,
+      lastActive: d.lastActive ?? d.lastSeen ?? null,
     };
   } catch (err) {
     console.error(`[TryHackMe] fetchProfileStats failed:`, err.message);

@@ -16,6 +16,19 @@
   grid-template-columns: repeat(4, 1fr);
 }
 
+/* Dynamic stat grid based on platform count */
+.activity-page__stats--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.activity-page__stats--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.activity-page__stats--5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .activity-page__section-title {
   display: flex;
   align-items: center;
@@ -85,7 +98,16 @@
 }
 
 .timeline__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: var(--space-2);
+}
+
+.timeline__total {
+  font-size: var(--fs-label-md);
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
 }
 
 .timeline__entries {
@@ -133,6 +155,10 @@
   color: var(--color-primary);
 }
 
+.insight-card__highlight--danger {
+  color: #e05252;
+}
+
 /* ── breakdown ── */
 
 .activity-page__breakdown {
@@ -145,6 +171,11 @@
   grid-template-columns: repeat(3, 1fr) auto;
   gap: var(--space-6);
   align-items: center;
+}
+
+/* When TryHackMe is connected, expand grid to fit 4 bars + avg */
+.breakdown--with-thm {
+  grid-template-columns: repeat(4, 1fr) auto;
 }
 
 .breakdown__row {
@@ -184,6 +215,10 @@
   background-color: var(--color-primary);
 }
 
+.breakdown__fill--danger {
+  background-color: #e05252;
+}
+
 .breakdown__sublabel {
   text-transform: none;
   letter-spacing: 0;
@@ -213,11 +248,15 @@
 }
 
 @media (max-width: 1024px) {
-  .activity-page__stats {
+  .activity-page__stats,
+  .activity-page__stats--3,
+  .activity-page__stats--4,
+  .activity-page__stats--5 {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .breakdown {
+  .breakdown,
+  .breakdown--with-thm {
     grid-template-columns: 1fr;
     gap: var(--space-4);
   }
@@ -233,7 +272,10 @@
 }
 
 @media (max-width: 640px) {
-  .activity-page__stats {
+  .activity-page__stats,
+  .activity-page__stats--3,
+  .activity-page__stats--4,
+  .activity-page__stats--5 {
     grid-template-columns: 1fr;
   }
 }

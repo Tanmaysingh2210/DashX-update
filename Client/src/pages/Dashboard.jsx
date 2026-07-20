@@ -426,7 +426,7 @@ const Dashboard = () => {
             )}
             {user?.tryhackmeUsername && (
               <StatCard
-                label="TryHackMe rooms"
+                label="TryHackMe events"
                 value={insights?.tryhackmeTotal ?? 0}
                 sub={insights ? `${insights.tryhackmeWeekly} this week` : undefined}
                 icon={<TryHackMeIcon />}

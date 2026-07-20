@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useAuth } from "../context/AuthContext";
 import { useActivity } from "../context/ActivityContext";
 import StatCard from "../components/StatCard";
 import Loader from "../components/Loader";
@@ -13,6 +14,7 @@ import {
   ZapIcon,
   GitHubIcon,
   LeetCodeIcon,
+  ShieldIcon,
 } from "../components/Icons";
 import "./Activity.css";
 
@@ -45,7 +47,11 @@ const utcDateStr = (daysAgo = 0) => {
 
 
 const Activity = () => {
+  const { user } = useAuth();
   const { days, stats, loading, error, loadAll } = useActivity();
+
+  const hasTHM = !!user?.tryhackmeUsername;
+  const hasLC = !!user?.leetcodeUsername;
 
   useEffect(() => {
     loadAll();
@@ -69,6 +75,7 @@ const Activity = () => {
     const last7Days = days.filter((d) => d.date >= sevenDaysAgo);
     const weeklyActivity = last7Days.reduce((s, d) => s + d.totalCount, 0);
     const problemsThisWeek = last7Days.reduce((s, d) => s + d.leetcodeCount, 0);
+    const tryhackmeThisWeek = last7Days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
 
     // ── previous 7 days (for velocity comparison) ──
     const fourteenDaysAgo = utcDateStr(13);
@@ -83,7 +90,8 @@ const Activity = () => {
     const last30Days = days.filter((d) => d.date >= thirtyDaysAgo);
     const githubLast30 = last30Days.reduce((s, d) => s + d.githubCount, 0);
     const leetcodeLast30 = last30Days.reduce((s, d) => s + d.leetcodeCount, 0);
-    const total30 = githubLast30 + leetcodeLast30;
+    const tryhackmeLast30 = last30Days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const total30 = githubLast30 + leetcodeLast30 + tryhackmeLast30;
 
     // count active calendar days in last 30
     let activeDays30 = 0;
@@ -92,14 +100,15 @@ const Activity = () => {
     }
 
     const githubPct = total30 ? Math.round((githubLast30 / total30) * 100) : 0;
-    const leetcodePct = total30 ? 100 - githubPct : 0;
+    const leetcodePct = total30 ? Math.round((leetcodeLast30 / total30) * 100) : 0;
+    const tryhackmePct = total30 ? 100 - githubPct - leetcodePct : 0;
     const activeDaysPct = Math.round((activeDays30 / 30) * 100);
 
     // daily average = total ÷ 30 calendar days (consistent with Dashboard)
     const dailyAvg = (total30 / 30).toFixed(1);
 
     // ── timeline: most recent active days newest first ──
-    const timeline = [...days].reverse().slice(0, 6);
+    const timeline = [...days].reverse().slice(0, 8);
 
     // ── most active weekday — UTC-safe ──
     const weekdayTotals = new Array(7).fill(0);
@@ -115,8 +124,10 @@ const Activity = () => {
       weeklyActivity,
       activeDays30,
       problemsThisWeek,
+      tryhackmeThisWeek,
       githubPct,
       leetcodePct,
+      tryhackmePct,
       activeDaysPct,
       dailyAvg,
       timeline,
@@ -124,14 +135,18 @@ const Activity = () => {
       peakDay,
       githubLast30,
       leetcodeLast30,
+      tryhackmeLast30,
     };
   }, [days]);
+
+  // Dynamic stat card count for grid layout
+  const statCount = 3 + (hasLC ? 1 : 0) + (hasTHM ? 1 : 0);
 
   return (
     <div className="page activity-page fade-in">
       <div className="activity-page__header">
         <h1 className="headline-lg">Activity &amp; insights</h1>
-        <p className="body-md">Analyze your coding patterns across GitHub and LeetCode.</p>
+        <p className="body-md">Analyze your coding patterns across all connected platforms.</p>
       </div>
 
       {error && <div className="dashboard__error card">{error}</div>}
@@ -140,7 +155,7 @@ const Activity = () => {
         <Loader label="Loading insights..." />
       ) : (
         <>
-          <div className="grid activity-page__stats">
+          <div className={`grid activity-page__stats activity-page__stats--${statCount}`}>
             <StatCard
               label="Weekly activity"
               value={data?.weeklyActivity ?? 0}
@@ -166,15 +181,28 @@ const Activity = () => {
               accent="secondary"
               delay={120}
             />
-            <StatCard
-              label="LeetCode attempts"
-              value={data?.problemsThisWeek ?? 0}
-              sub="this week (incl. failed submits)"
-              icon={<CodeIcon />}
-              accent="tertiary"
-              subTone="warning"
-              delay={180}
-            />
+            {hasLC && (
+              <StatCard
+                label="LeetCode attempts"
+                value={data?.problemsThisWeek ?? 0}
+                sub="this week (incl. failed submits)"
+                icon={<CodeIcon />}
+                accent="tertiary"
+                subTone="warning"
+                delay={180}
+              />
+            )}
+            {hasTHM && (
+              <StatCard
+                label="TryHackMe events"
+                value={data?.tryhackmeThisWeek ?? 0}
+                sub="events this week"
+                icon={<ShieldIcon />}
+                accent="danger"
+                subTone="danger"
+                delay={210}
+              />
+            )}
           </div>
 
           <div className="activity-page__main">
@@ -192,6 +220,7 @@ const Activity = () => {
                       <div className="timeline__content">
                         <div className="timeline__meta">
                           <span className="label-md">{formatDate(day.date)}</span>
+                          <span className="timeline__total">{day.totalCount} total</span>
                         </div>
                         <div className="timeline__entries">
                           {day.githubCount > 0 && (
@@ -211,6 +240,16 @@ const Activity = () => {
                               </span>
                               <span className="body-md">
                                 {day.leetcodeCount} LeetCode submission{day.leetcodeCount > 1 ? "s" : ""}
+                              </span>
+                            </div>
+                          )}
+                          {(day.tryhackmeCount || 0) > 0 && (
+                            <div className="timeline__entry">
+                              <span className="stat-card__icon stat-card__icon--danger timeline__icon">
+                                <ShieldIcon width={14} height={14} />
+                              </span>
+                              <span className="body-md">
+                                {day.tryhackmeCount} TryHackMe event{day.tryhackmeCount > 1 ? "s" : ""}
                               </span>
                             </div>
                           )}
@@ -249,31 +288,48 @@ const Activity = () => {
                 You're most active on{" "}
                 <strong className="insight-card__highlight insight-card__highlight--primary">
                   {data?.peakDay ?? "—"}
-                </strong>. Plan your hardest problems for that day.
+                </strong>. Plan your hardest tasks for that day.
               </InsightCard>
 
-              <InsightCard icon={<ZapIcon />} accent="tertiary" title="LeetCode activity" delay={360}>
-                You made{" "}
-                <strong className="insight-card__highlight insight-card__highlight--tertiary">
-                  {data?.leetcodeLast30 ?? 0} submission attempts
-                </strong>{" "}
-                in the last 30 days (includes failed submits — accepted count is on your LeetCode profile).
-              </InsightCard>
+              {hasLC && (
+                <InsightCard icon={<ZapIcon />} accent="tertiary" title="LeetCode activity" delay={360}>
+                  You made{" "}
+                  <strong className="insight-card__highlight insight-card__highlight--tertiary">
+                    {data?.leetcodeLast30 ?? 0} submission attempts
+                  </strong>{" "}
+                  in the last 30 days (includes failed submits — accepted count is on your LeetCode profile).
+                </InsightCard>
+              )}
 
               <InsightCard icon={<GitHubIcon />} accent="secondary" title="Shipping pace" delay={420}>
                 <strong className="insight-card__highlight insight-card__highlight--secondary">
                   {data?.githubLast30 ?? 0} GitHub contributions
                 </strong>{" "}logged over the last 30 days.
               </InsightCard>
+
+              {hasTHM && (
+                <InsightCard icon={<ShieldIcon />} accent="danger" title="TryHackMe activity" delay={480}>
+                  You completed{" "}
+                  <strong className="insight-card__highlight insight-card__highlight--danger">
+                    {data?.tryhackmeLast30 ?? 0} events
+                  </strong>{" "}
+                  on TryHackMe in the last 30 days — machines started, questions answered, and more.
+                </InsightCard>
+              )}
             </div>
           </div>
 
           <div className="card activity-page__breakdown fade-up" style={{ animationDelay: "480ms" }}>
             <h2 className="title-lg activity-page__section-title">Activity breakdown (last 30 days)</h2>
 
-            <div className="breakdown">
+            <div className={`breakdown ${hasTHM ? 'breakdown--with-thm' : ''}`}>
               <BreakdownBar label="GitHub activity" pct={data?.githubPct ?? 0} color="secondary" delay={520} />
-              <BreakdownBar label="LeetCode activity" pct={data?.leetcodePct ?? 0} color="tertiary" delay={580} />
+              {hasLC && (
+                <BreakdownBar label="LeetCode activity" pct={data?.leetcodePct ?? 0} color="tertiary" delay={580} />
+              )}
+              {hasTHM && (
+                <BreakdownBar label="TryHackMe activity" pct={data?.tryhackmePct ?? 0} color="danger" delay={610} />
+              )}
               <BreakdownBar
                 label="Active days"
                 pct={data?.activeDaysPct ?? 0}

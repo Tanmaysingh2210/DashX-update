@@ -1,6 +1,6 @@
-import { fetchAllGitHubContributions, fetchCurrentYearGitHubContributions } from "./githubService.js";
-import { fetchAllLeetCodeSubmissions, fetchCurrentYearLeetCodeSubmissions } from "./leetcodeService.js";
-import { fetchAllTryHackMeActivity, fetchCurrentYearTryHackMeActivity } from "./tryhackmeService.js";
+import { fetchAllGitHubContributions, fetchCurrentYearGitHubContributions, fetchGitHubProfileStats } from "./githubService.js";
+import { fetchAllLeetCodeSubmissions, fetchCurrentYearLeetCodeSubmissions, fetchLeetCodeProfileStats } from "./leetcodeService.js";
+import { fetchAllTryHackMeActivity, fetchCurrentYearTryHackMeActivity, fetchTryHackMeProfileStats } from "./tryhackmeService.js";
 import User from "../models/User.js";
 import Activity from "../models/Activity.js";
 
@@ -261,11 +261,48 @@ export const syncUserActivity = async (userId, githubUsername, leetcodeUsername,
   const totalDays = allActiveDays.length;
   const totalContributions = allActiveDays.reduce((s, d) => s + d.totalCount, 0);
 
+  // ── fetch platform profile stats (public repos, problems solved, rooms completed) ──
+  // These are cached in User.platformStats so the dashboard never needs to hit external APIs.
+  // Use Promise.allSettled so one failure doesn't block others.
+  const profilePromises = [
+    fetchGitHubProfileStats(githubUsername).catch(() => null),
+    leetcodeUsername ? fetchLeetCodeProfileStats(leetcodeUsername).catch(() => null) : Promise.resolve(null),
+    tryhackmeUsername ? fetchTryHackMeProfileStats(tryhackmeUsername).catch(() => null) : Promise.resolve(null),
+  ];
+
+  const [ghStats, lcStats, thmStats] = await Promise.all(profilePromises);
+
+  // Only overwrite a platform's cached stats if the fetch succeeded.
+  // This prevents good cached data from being wiped when a platform is rate-limited.
+  const platformStatsUpdate = {};
+  if (ghStats) {
+    platformStatsUpdate["platformStats.github"] = { publicRepos: ghStats.publicRepos ?? 0 };
+  }
+  if (lcStats) {
+    platformStatsUpdate["platformStats.leetcode"] = {
+      totalSolved: lcStats.totalSolved ?? 0,
+      easy: lcStats.easy ?? 0,
+      medium: lcStats.medium ?? 0,
+      hard: lcStats.hard ?? 0,
+    };
+  }
+  if (thmStats) {
+    platformStatsUpdate["platformStats.tryhackme"] = {
+      roomsCompleted: thmStats.roomsCompleted ?? null,
+      level: thmStats.level ?? 0,
+      totalPoints: thmStats.totalPoints ?? 0,
+      rank: thmStats.rank ?? null,
+    };
+  }
+
+  console.log(`[Sync] platform stats fetched — GitHub: ${!!ghStats}, LeetCode: ${!!lcStats}, TryHackMe: ${!!thmStats}`);
+
   // persist longestStreak to User — $max means it only updates if new value is higher
   // so a personal best is never accidentally lowered by a partial sync
   await User.findByIdAndUpdate(userId, {
     lastSynced: new Date(),
     $max: { longestStreak },
+    $set: platformStatsUpdate,
   });
 
   console.log(`[Sync] done — streak: ${currentStreak}, longest: ${longestStreak}, total: ${totalContributions}`);
