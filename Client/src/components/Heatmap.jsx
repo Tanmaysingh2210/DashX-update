@@ -171,7 +171,7 @@ const Heatmap = ({ days = [] }) => {
               )}
               {(hovered.tryhackmeCount || 0) > 0 && (
                 <span className="heatmap__tooltip-detail">
-                  <span className="dot dot--tryhackme" /> {hovered.tryhackmeCount} room{hovered.tryhackmeCount > 1 ? "s" : ""}
+                  <span className="dot dot--tryhackme" /> {hovered.tryhackmeCount} event{hovered.tryhackmeCount > 1 ? "s" : ""}
                 </span>
               )}
             </>

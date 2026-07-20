@@ -290,3 +290,34 @@ export const validateTryHackMeUsername = async (username) => {
     };
   }
 };
+
+// ─── profile stats — rooms completed, level, points ─────────────────────────
+
+/**
+ * Fetches profile stats for the dashboard activity panel.
+ * Returns rooms completed, level, and total points.
+ * Returns null if rate-limited (caller should handle gracefully).
+ *
+ * @param {string} username - TryHackMe username
+ * @returns {Promise<{ roomsCompleted: number, level: number, totalPoints: number } | null>}
+ */
+export const fetchTryHackMeProfileStats = async (username) => {
+  try {
+    const json = await fetchFromTHM(
+      `/api/v2/public-profile?username=${encodeURIComponent(username)}`
+    );
+
+    if (json.status !== "success" || !json.data) {
+      return null;
+    }
+
+    return {
+      roomsCompleted: json.data.roomsCompleted ?? 0,
+      level: json.data.level ?? 0,
+      totalPoints: json.data.totalPoints ?? 0,
+    };
+  } catch (err) {
+    console.error(`[TryHackMe] fetchProfileStats failed:`, err.message);
+    return null; // graceful degradation — panel still shows activity-based data
+  }
+};

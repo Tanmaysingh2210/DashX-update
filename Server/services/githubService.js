@@ -234,3 +234,29 @@ export const validateGitHubUsername = async (username) => {
     return false;
   }
 };
+
+// ─── profile stats — public repos count ─────────────────────────────────────
+
+const PROFILE_STATS_QUERY = `
+  query getProfileStats($username: String!) {
+    user(login: $username) {
+      repositories(privacy: PUBLIC) {
+        totalCount
+      }
+    }
+  }
+`;
+
+/**
+ * Fetches lightweight profile stats for the dashboard activity panel.
+ * Currently returns: public repos count.
+ *
+ * @param {string} username - GitHub login handle
+ * @returns {Promise<{ publicRepos: number }>}
+ */
+export const fetchGitHubProfileStats = async (username) => {
+  const data = await githubRequest(PROFILE_STATS_QUERY, { username });
+  return {
+    publicRepos: data?.user?.repositories?.totalCount ?? 0,
+  };
+};

@@ -3,6 +3,7 @@ import {
   syncActivity,
   getHeatmap,
   getStats,
+  getPlatformStats,
   validateUsernames,
   cleanupZeroDays
 } from "../controllers/activityController.js";
@@ -31,6 +32,13 @@ router.get("/heatmap", getHeatmap);
  * Returns streak, totals, weekly activity for dashboard cards
  */
 router.get("/stats", getStats);
+
+/**
+ * GET /activity/platform-stats
+ * Returns live profile stats from each connected platform
+ * (GitHub repos, LeetCode problems solved, THM rooms completed)
+ */
+router.get("/platform-stats", getPlatformStats);
 
 /**
  * POST /activity/validate

@@ -1,11 +1,13 @@
 import { syncUserActivity, calculateStreaks } from "../services/activityService.js";
 import {
   validateGitHubUsername,
+  fetchGitHubProfileStats,
 } from "../services/githubService.js";
 import {
   validateLeetCodeUsername,
+  fetchLeetCodeProfileStats,
 } from "../services/leetcodeService.js";
-import { validateTryHackMeUsername } from "../services/tryhackmeService.js";
+import { validateTryHackMeUsername, fetchTryHackMeProfileStats } from "../services/tryhackmeService.js";
 import User from "../models/User.js";
 import Activity from "../models/Activity.js";
 import { extractLeetCodeUsername } from "../utils/sanitize.js";
@@ -173,6 +175,57 @@ export const getStats = async (req, res) => {
   }
 };
 
+
+// ─── GET /activity/platform-stats ────────────────────────────────────────────
+
+/**
+ * Returns live profile stats from each connected platform.
+ * Fetches in parallel — if one platform fails (e.g., rate-limited),
+ * it returns null for that platform and the others still succeed.
+ */
+export const getPlatformStats = async (req, res) => {
+  try {
+    const user = req.user;
+    const promises = [];
+
+    // GitHub — always connected
+    promises.push(
+      fetchGitHubProfileStats(user.githubUsername)
+        .catch((err) => {
+          console.error("[PlatformStats] GitHub failed:", err.message);
+          return null;
+        })
+    );
+
+    // LeetCode — only if connected
+    promises.push(
+      user.leetcodeUsername
+        ? fetchLeetCodeProfileStats(user.leetcodeUsername)
+            .catch((err) => {
+              console.error("[PlatformStats] LeetCode failed:", err.message);
+              return null;
+            })
+        : Promise.resolve(null)
+    );
+
+    // TryHackMe — only if connected (returns null internally if rate-limited)
+    promises.push(
+      user.tryhackmeUsername
+        ? fetchTryHackMeProfileStats(user.tryhackmeUsername)
+        : Promise.resolve(null)
+    );
+
+    const [github, leetcode, tryhackme] = await Promise.all(promises);
+
+    res.status(200).json({
+      success: true,
+      platformStats: { github, leetcode, tryhackme },
+    });
+  } catch (err) {
+    console.error("[getPlatformStats] error:", err.message);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 // ─── POST /activity/validate ─────────────────────────────────────────────────
 

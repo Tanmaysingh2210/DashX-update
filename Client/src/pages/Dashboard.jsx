@@ -35,6 +35,23 @@ const formatRelative = (dateStr) => {
   return `${diffDays}d ago`;
 };
 
+/**
+ * Formats a YYYY-MM-DD date string into a relative "Xd ago" label.
+ * Uses UTC parsing to avoid timezone shift issues.
+ */
+const formatDateRelative = (dateStr) => {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dateUTC = new Date(Date.UTC(y, m - 1, d));
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const diffMs = todayUTC.getTime() - dateUTC.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return `${diffDays}d ago`;
+};
+
 /** Sync progress steps shown during initial setup sync */
 const SYNC_STEPS = [
   "Connecting to GitHub…",
@@ -47,7 +64,7 @@ const SYNC_STEPS = [
 const Dashboard = () => {
   const [copied, setCopied] = useState(false);
   const { user, refreshUser } = useAuth();
-  const { days, stats, loading, syncing, error, clearError, loadAll, sync } = useActivity();
+  const { days, stats, platformStats, loading, syncing, error, clearError, loadAll, sync } = useActivity();
 
   // ── initial sync state ──
   const [initialSyncing, setInitialSyncing] = useState(false);
@@ -435,6 +452,9 @@ const Dashboard = () => {
               <div className="dashboard__heatmap-legend">
                 <span><span className="dot dot--github" /> GitHub</span>
                 <span><span className="dot dot--leetcode" /> LeetCode</span>
+                {user?.tryhackmeUsername && (
+                  <span><span className="dot dot--tryhackme" /> TryHackMe</span>
+                )}
                 <span><span className="dot dot--combined" /> Combined</span>
               </div>
             </div>
@@ -451,7 +471,7 @@ const Dashboard = () => {
             )}
           </div>
 
-          <div className="dashboard__panels">
+          <div className={`dashboard__panels ${user?.leetcodeUsername && user?.tryhackmeUsername ? 'dashboard__panels--three' : ''}`}>
             <ActivityPanel
               title="GitHub activity"
               accent="secondary"
@@ -459,6 +479,7 @@ const Dashboard = () => {
               rows={[
                 { label: "Contributions this week", value: insights?.githubWeekly ?? 0 },
                 { label: "Last 12 months", value: insights?.githubTotal ?? 0 },
+                { label: "Public repos", value: platformStats?.github?.publicRepos ?? "—" },
                 { label: "Username", value: `@${user?.githubUsername}`, mono: true },
               ]}
               lastActive={insights?.lastGithub?.date}
@@ -472,6 +493,13 @@ const Dashboard = () => {
                 rows={[
                   { label: "Attempts this week", value: insights?.leetcodeWeekly ?? 0 },
                   { label: "Last 12 months (incl. failed)", value: insights?.leetcodeTotal ?? 0 },
+                  { label: "Problems solved", value: platformStats?.leetcode?.totalSolved ?? "—" },
+                  {
+                    label: "Difficulty",
+                    value: platformStats?.leetcode
+                      ? <DifficultyBadges easy={platformStats.leetcode.easy} medium={platformStats.leetcode.medium} hard={platformStats.leetcode.hard} />
+                      : "—",
+                  },
                   { label: "Username", value: `${user?.leetcodeUsername}`, mono: true },
                 ]}
                 lastActive={insights?.lastLeetcode?.date}
@@ -484,8 +512,9 @@ const Dashboard = () => {
                 accent="danger"
                 icon={<TryHackMeIcon />}
                 rows={[
-                  { label: "Rooms this week", value: insights?.tryhackmeWeekly ?? 0 },
+                  { label: "Events this week", value: insights?.tryhackmeWeekly ?? 0 },
                   { label: "Last 12 months", value: insights?.tryhackmeTotal ?? 0 },
+                  { label: "Rooms completed", value: platformStats?.tryhackme?.roomsCompleted ?? "—" },
                   { label: "Username", value: user.tryhackmeUsername, mono: true },
                 ]}
                 lastActive={insights?.lastTryhackme?.date}
@@ -526,11 +555,19 @@ const ActivityPanel = ({ title, icon, accent, rows, lastActive, delay }) => (
     </div>
 
     <div className="activity-panel__footer">
-      <span className={`dot dot--${accent === "secondary" ? "github" : "leetcode"}`} />
+      <span className={`dot dot--${accent === "secondary" ? "github" : accent === "danger" ? "tryhackme" : "leetcode"}`} />
       <span className="label-md activity-panel__last-active">
-        Last active: {lastActive ? formatRelative(lastActive) : "—"}
+        Last active: {lastActive ? formatDateRelative(lastActive) : "—"}
       </span>
     </div>
+  </div>
+);
+
+const DifficultyBadges = ({ easy, medium, hard }) => (
+  <div className="difficulty-badges">
+    <span className="difficulty-badge difficulty-badge--easy">{easy} Easy</span>
+    <span className="difficulty-badge difficulty-badge--medium">{medium} Med</span>
+    <span className="difficulty-badge difficulty-badge--hard">{hard} Hard</span>
   </div>
 );
 

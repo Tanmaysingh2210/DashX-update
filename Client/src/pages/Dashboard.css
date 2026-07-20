@@ -114,6 +114,46 @@
   gap: var(--space-6);
 }
 
+/* 3-column layout when all three platforms are connected */
+.dashboard__panels--three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* ── difficulty badges (LeetCode Easy / Medium / Hard) ── */
+
+.difficulty-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.difficulty-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.difficulty-badge--easy {
+  background-color: rgba(0, 184, 148, 0.12);
+  color: #00b894;
+}
+
+.difficulty-badge--medium {
+  background-color: rgba(253, 203, 110, 0.12);
+  color: #fdcb6e;
+}
+
+.difficulty-badge--hard {
+  background-color: rgba(255, 118, 117, 0.12);
+  color: #ff7675;
+}
+
 .activity-panel {
   display: flex;
   flex-direction: column;
@@ -209,6 +249,10 @@
   }
 
   .dashboard__panels {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard__panels--three {
     grid-template-columns: 1fr;
   }
 }

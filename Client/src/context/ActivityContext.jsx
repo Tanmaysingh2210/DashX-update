@@ -17,6 +17,7 @@ const ActivityContext = createContext(null);
 export const ActivityProvider = ({ children }) => {
   const [days, setDays] = useState([]);          // [{ date, githubCount, leetcodeCount, totalCount }]
   const [stats, setStats] = useState(null);       // { currentStreak, longestStreak, totalActiveDays, ... }
+  const [platformStats, setPlatformStats] = useState(null); // { github, leetcode, tryhackme } — live profile stats
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
@@ -42,6 +43,17 @@ export const ActivityProvider = ({ children }) => {
     return data.stats;
   }, []);
 
+  const fetchPlatformStats = useCallback(async () => {
+    try {
+      const { data } = await api.get("/activity/platform-stats");
+      setPlatformStats(data.platformStats);
+      return data.platformStats;
+    } catch {
+      // non-critical — don't block dashboard if this fails
+      return null;
+    }
+  }, []);
+
   /**
    * Loads both heatmap + stats together — used on Dashboard mount.
    */
@@ -50,12 +62,14 @@ export const ActivityProvider = ({ children }) => {
     setError(null);
     try {
       await Promise.all([fetchHeatmap(), fetchStats()]);
+      // fetch platform stats in background — non-blocking
+      fetchPlatformStats();
     } catch (err) {
       setError(err.response?.data?.message || "Couldn't load activity data");
     } finally {
       setLoading(false);
     }
-  }, [fetchHeatmap, fetchStats]);
+  }, [fetchHeatmap, fetchStats, fetchPlatformStats]);
 
   /**
    * Triggers a manual sync. Backend rate-limits to once per hour
@@ -91,12 +105,14 @@ export const ActivityProvider = ({ children }) => {
   const value = {
     days,
     stats,
+    platformStats,
     loading,
     syncing,
     error,
     clearError,
     fetchHeatmap,
     fetchStats,
+    fetchPlatformStats,
     loadAll,
     sync,
   };

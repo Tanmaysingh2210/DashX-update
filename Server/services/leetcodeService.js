@@ -253,3 +253,47 @@ export const validateLeetCodeUsername = async (username) => {
     return false;
   }
 };
+
+// ─── profile stats — problems solved with difficulty breakdown ───────────────
+
+const PROBLEM_STATS_QUERY = `
+  query getUserProblemStats($username: String!) {
+    matchedUser(username: $username) {
+      submitStatsGlobal {
+        acSubmissionNum {
+          difficulty
+          count
+        }
+      }
+    }
+  }
+`;
+
+/**
+ * Fetches problem-solving stats for the dashboard activity panel.
+ * Returns total problems solved and per-difficulty breakdown.
+ *
+ * @param {string} username - LeetCode username
+ * @returns {Promise<{ totalSolved: number, easy: number, medium: number, hard: number }>}
+ */
+export const fetchLeetCodeProfileStats = async (username) => {
+  const data = await leetcodeRequest(PROBLEM_STATS_QUERY, { username });
+
+  const stats = data?.matchedUser?.submitStatsGlobal?.acSubmissionNum;
+  if (!stats) {
+    return { totalSolved: 0, easy: 0, medium: 0, hard: 0 };
+  }
+
+  // stats is an array like: [{ difficulty: "All", count: 142 }, { difficulty: "Easy", count: 58 }, ...]
+  const byDifficulty = {};
+  for (const s of stats) {
+    byDifficulty[s.difficulty] = s.count;
+  }
+
+  return {
+    totalSolved: byDifficulty["All"] || 0,
+    easy: byDifficulty["Easy"] || 0,
+    medium: byDifficulty["Medium"] || 0,
+    hard: byDifficulty["Hard"] || 0,
+  };
+};
