@@ -1,13 +1,11 @@
 import { syncUserActivity, calculateStreaks } from "../services/activityService.js";
 import {
   validateGitHubUsername,
-  fetchGitHubProfileStats,
 } from "../services/githubService.js";
 import {
   validateLeetCodeUsername,
-  fetchLeetCodeProfileStats,
 } from "../services/leetcodeService.js";
-import { validateTryHackMeUsername, fetchTryHackMeProfileStats } from "../services/tryhackmeService.js";
+import { validateTryHackMeUsername } from "../services/tryhackmeService.js";
 import User from "../models/User.js";
 import Activity from "../models/Activity.js";
 import { extractLeetCodeUsername } from "../utils/sanitize.js";
@@ -179,43 +177,83 @@ export const getStats = async (req, res) => {
 // ─── GET /activity/platform-stats ────────────────────────────────────────────
 
 /**
- * Returns live profile stats from each connected platform.
- * Fetches in parallel — if one platform fails (e.g., rate-limited),
- * it returns null for that platform and the others still succeed.
+ * Returns cached profile stats from each connected platform.
+ * Stats are populated during sync (stored in User.platformStats)
+ * and supplemented with weekly activity counts from the Activity collection.
+ *
+ * This NEVER calls external APIs — all data comes from MongoDB.
  */
 export const getPlatformStats = async (req, res) => {
   try {
-    const user = req.user;
-    const promises = [];
+    const user = await User.findById(req.user._id)
+      .select("githubUsername leetcodeUsername tryhackmeUsername platformStats")
+      .lean();
 
-    // GitHub — always connected
-    promises.push(
-      fetchGitHubProfileStats(user.githubUsername)
-        .catch((err) => {
-          console.error("[PlatformStats] GitHub failed:", err.message);
-          return null;
-        })
-    );
+    const cached = user.platformStats || {};
 
-    // LeetCode — only if connected
-    promises.push(
-      user.leetcodeUsername
-        ? fetchLeetCodeProfileStats(user.leetcodeUsername)
-            .catch((err) => {
-              console.error("[PlatformStats] LeetCode failed:", err.message);
-              return null;
-            })
-        : Promise.resolve(null)
-    );
+    // Compute weekly stats from Activity collection (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
 
-    // TryHackMe — only if connected (returns null internally if rate-limited)
-    promises.push(
-      user.tryhackmeUsername
-        ? fetchTryHackMeProfileStats(user.tryhackmeUsername)
-        : Promise.resolve(null)
-    );
+    const recentDays = await Activity.find({
+      userId: req.user._id,
+      date: { $gte: sevenDaysAgo },
+      totalCount: { $gt: 0 },
+    })
+      .sort({ date: -1 })
+      .select("-_id date githubCount leetcodeCount tryhackmeCount")
+      .lean();
 
-    const [github, leetcode, tryhackme] = await Promise.all(promises);
+    const weeklyGithub = recentDays.reduce((s, d) => s + d.githubCount, 0);
+    const weeklyLeetcode = recentDays.reduce((s, d) => s + d.leetcodeCount, 0);
+    const weeklyTryhackme = recentDays.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+
+    // Derive last active date per platform from Activity data (last 365 days)
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
+
+    const [lastGhDay, lastLcDay, lastThmDay] = await Promise.all([
+      Activity.findOne({ userId: req.user._id, githubCount: { $gt: 0 }, date: { $gte: oneYearAgo } })
+        .sort({ date: -1 }).select("-_id date").lean(),
+      Activity.findOne({ userId: req.user._id, leetcodeCount: { $gt: 0 }, date: { $gte: oneYearAgo } })
+        .sort({ date: -1 }).select("-_id date").lean(),
+      Activity.findOne({ userId: req.user._id, tryhackmeCount: { $gt: 0 }, date: { $gte: oneYearAgo } })
+        .sort({ date: -1 }).select("-_id date").lean(),
+    ]);
+
+    // Build response — GitHub is always connected
+    const github = {
+      publicRepos: cached.github?.publicRepos ?? 0,
+      contributionsThisWeek: weeklyGithub,
+      username: user.githubUsername,
+      lastActive: lastGhDay?.date || null,
+    };
+
+    const leetcode = user.leetcodeUsername
+      ? {
+          totalSolved: cached.leetcode?.totalSolved ?? 0,
+          easy: cached.leetcode?.easy ?? 0,
+          medium: cached.leetcode?.medium ?? 0,
+          hard: cached.leetcode?.hard ?? 0,
+          attemptsThisWeek: weeklyLeetcode,
+          username: user.leetcodeUsername,
+          lastActive: lastLcDay?.date || null,
+        }
+      : null;
+
+    const tryhackme = user.tryhackmeUsername
+      ? {
+          roomsCompleted: cached.tryhackme?.roomsCompleted ?? null,
+          level: cached.tryhackme?.level ?? 0,
+          totalPoints: cached.tryhackme?.totalPoints ?? 0,
+          rank: cached.tryhackme?.rank ?? null,
+          eventsThisWeek: weeklyTryhackme,
+          username: user.tryhackmeUsername,
+          lastActive: lastThmDay?.date || null,
+        }
+      : null;
 
     res.status(200).json({
       success: true,

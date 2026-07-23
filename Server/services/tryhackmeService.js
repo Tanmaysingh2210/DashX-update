@@ -33,6 +33,25 @@ const THM_HEADERS = {
   Origin: "https://tryhackme.com",
 };
 
+// ─── cooldown — skip all THM API calls for 30 min after a 429 HTML ──────────
+
+const THM_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+let thmCooldownUntil = 0; // timestamp — 0 means no cooldown active
+
+const setThmCooldown = () => {
+  thmCooldownUntil = Date.now() + THM_COOLDOWN_MS;
+  const resumeAt = new Date(thmCooldownUntil).toLocaleTimeString();
+  console.log(
+    `[TryHackMe] Cooldown activated — skipping all THM API calls until ${resumeAt} (30 min)`
+  );
+};
+
+const isThmCoolingDown = () => {
+  if (Date.now() < thmCooldownUntil) return true;
+  thmCooldownUntil = 0; // cooldown expired, reset
+  return false;
+};
+
 // ─── helper — sleep utility ─────────────────────────────────────────────────
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,22 +61,27 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Fetches JSON from a TryHackMe API endpoint using plain fetch().
  * Automatically retries on 429 (rate-limited) responses with exponential backoff.
+ * Returns null immediately if THM is in cooldown (after a 429 HTML block).
  *
  * @param {string} apiPath  - API path e.g. "/api/v2/public-profile?username=X"
  * @param {number} retries  - Number of retries remaining (default: 3)
- * @returns {Promise<object>} - Parsed JSON from the API
+ * @returns {Promise<object|null>} - Parsed JSON from the API, or null if cooling down
  */
 const fetchFromTHM = async (apiPath, retries = 3) => {
+  // Skip entirely if we're in cooldown from a previous 429 block
+  if (isThmCoolingDown()) return null;
+
   const url = `${THM_BASE}${apiPath}`;
   const resp = await fetch(url, { headers: THM_HEADERS });
 
   if (resp.status === 429) {
     // Check if the 429 is a Vercel security checkpoint (HTML, not JSON).
-    // These don't resolve with simple retries — fail fast to avoid log spam.
+    // These don't resolve with simple retries — activate cooldown and fail fast.
     const contentType = resp.headers.get("content-type") || "";
     if (contentType.includes("text/html")) {
+      setThmCooldown();
       const err = new Error(
-        "TryHackMe blocked by Vercel security checkpoint (429 HTML). Skipping."
+        "TryHackMe blocked by Vercel security checkpoint (429 HTML). Cooldown activated."
       );
       err.code = "RATE_LIMITED";
       throw err;
@@ -157,6 +181,13 @@ export const fetchTryHackMeUserId = async (username) => {
       `/api/v2/public-profile?username=${encodeURIComponent(username)}`
     );
 
+    // null = cooldown active, treat as rate-limited
+    if (!json) {
+      const err = new Error("TryHackMe is in cooldown. Skipping.");
+      err.code = "RATE_LIMITED";
+      throw err;
+    }
+
     if (json.status !== "success" || !json.data?.username) {
       throw new Error(`TryHackMe user "${username}" not found`);
     }
@@ -218,7 +249,8 @@ export const fetchAllTryHackMeActivity = async (username, thmUserId) => {
         )}&year=${year}`
       );
 
-      if (json.status === "success" && json.data?.yearlyActivity) {
+      // null = cooldown active, skip this year
+      if (json && json.status === "success" && json.data?.yearlyActivity) {
         const activeDays = json.data.yearlyActivity
           .filter((d) => d.count > 0)
           .map((d) => ({ date: d.date, count: d.count }));
@@ -263,8 +295,10 @@ export const fetchCurrentYearTryHackMeActivity = async (
     )}&year=${currentYear}`
   );
 
-  if (json.status !== "success" || !json.data?.yearlyActivity) {
-    console.error(`[TryHackMe] Failed to fetch year ${currentYear}`);
+  // null = cooldown active, or API failure
+  if (!json || json.status !== "success" || !json.data?.yearlyActivity) {
+    if (!json) console.log(`[TryHackMe] Skipping ${currentYear} — cooldown active`);
+    else console.error(`[TryHackMe] Failed to fetch year ${currentYear}`);
     return [];
   }
 
@@ -318,7 +352,8 @@ export const fetchTryHackMeProfileStats = async (username) => {
       `/api/v2/public-profile?username=${encodeURIComponent(username)}`
     );
 
-    if (json.status !== "success" || !json.data) {
+    // null = cooldown active
+    if (!json || json.status !== "success" || !json.data) {
       return null;
     }
 
