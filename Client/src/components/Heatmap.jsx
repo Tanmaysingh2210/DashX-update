@@ -75,9 +75,24 @@ const buildWeeks = (days) => {
   return weeks;
 };
 
-const Heatmap = ({ days = [] }) => {
+const Heatmap = ({ days = [], connectedPlatforms }) => {
   const [hovered, setHovered] = useState(null);
   const weeks = useMemo(() => buildWeeks(days), [days]);
+
+  const hasGithub = connectedPlatforms?.github !== undefined
+    ? connectedPlatforms.github
+    : true;
+
+  const hasLeetcode = connectedPlatforms?.leetcode !== undefined
+    ? connectedPlatforms.leetcode
+    : days.some((d) => (d.leetcodeCount || 0) > 0);
+
+  const hasTryhackme = connectedPlatforms?.tryhackme !== undefined
+    ? connectedPlatforms.tryhackme
+    : days.some((d) => (d.tryhackmeCount || 0) > 0);
+
+  const connectedCount = (hasGithub ? 1 : 0) + (hasLeetcode ? 1 : 0) + (hasTryhackme ? 1 : 0);
+  const hasCombined = connectedCount >= 2;
 
   const maxGithub    = useMemo(() => days.reduce((m, d) => Math.max(m, d.githubCount),             1), [days]);
   const maxLeetcode  = useMemo(() => days.reduce((m, d) => Math.max(m, d.leetcodeCount),           1), [days]);
@@ -181,30 +196,38 @@ const Heatmap = ({ days = [] }) => {
         </div>
 
         <div className="heatmap__legend">
-          <span className="heatmap__legend-group">
-            <span className="dot dot--github" /> GitHub
-            <span className="heatmap__legend-swatches">
-              {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--github-${l}`} />)}
+          {hasGithub && (
+            <span className="heatmap__legend-group">
+              <span className="dot dot--github" /> GitHub
+              <span className="heatmap__legend-swatches">
+                {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--github-${l}`} />)}
+              </span>
             </span>
-          </span>
-          <span className="heatmap__legend-group">
-            <span className="dot dot--leetcode" /> LeetCode
-            <span className="heatmap__legend-swatches">
-              {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--leetcode-${l}`} />)}
+          )}
+          {hasLeetcode && (
+            <span className="heatmap__legend-group">
+              <span className="dot dot--leetcode" /> LeetCode
+              <span className="heatmap__legend-swatches">
+                {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--leetcode-${l}`} />)}
+              </span>
             </span>
-          </span>
-          <span className="heatmap__legend-group">
-            <span className="dot dot--tryhackme" /> TryHackMe
-            <span className="heatmap__legend-swatches">
-              {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--tryhackme-${l}`} />)}
+          )}
+          {hasTryhackme && (
+            <span className="heatmap__legend-group">
+              <span className="dot dot--tryhackme" /> TryHackMe
+              <span className="heatmap__legend-swatches">
+                {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--tryhackme-${l}`} />)}
+              </span>
             </span>
-          </span>
-          <span className="heatmap__legend-group">
-            <span className="dot dot--combined" /> Combined
-            <span className="heatmap__legend-swatches">
-              {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--both-${l}`} />)}
+          )}
+          {hasCombined && (
+            <span className="heatmap__legend-group">
+              <span className="dot dot--combined" /> Combined
+              <span className="heatmap__legend-swatches">
+                {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--both-${l}`} />)}
+              </span>
             </span>
-          </span>
+          )}
         </div>
       </div>
     </div>

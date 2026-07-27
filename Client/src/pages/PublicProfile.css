@@ -74,6 +74,10 @@
   color: var(--color-tertiary);
 }
 
+.public-profile__handle--thm {
+  color: #f87171;
+}
+
 .public-profile__handle:hover {
   opacity: 0.8;
 }
@@ -104,7 +108,7 @@
 
 .public-profile__stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--space-6);
 }
 
@@ -185,7 +189,7 @@
 
 .public-profile__panels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-6);
 }
 
@@ -229,6 +233,10 @@
 
 .public-profile__link--lc {
   color: var(--color-tertiary);
+}
+
+.public-profile__link--thm {
+  color: #f87171;
 }
 
 .public-profile__link:hover {

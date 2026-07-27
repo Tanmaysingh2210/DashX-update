@@ -8,6 +8,7 @@ import {
   FlameIcon,
   GitHubIcon,
   LeetCodeIcon,
+  TryHackMeIcon,
   TrendIcon,
   CalendarIcon,
   CommitIcon,
@@ -156,14 +157,26 @@ const PublicProfile = () => {
                 >
                   <GitHubIcon width={14} height={14} /> {profile.githubUsername}
                 </a>
-                <a
-                  href={`https://leetcode.com/${profile.leetcodeUsername}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="public-profile__handle public-profile__handle--lc"
-                >
-                  <LeetCodeIcon width={14} height={14} /> {profile.leetcodeUsername}
-                </a>
+                {profile.leetcodeUsername && (
+                  <a
+                    href={`https://leetcode.com/${profile.leetcodeUsername}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="public-profile__handle public-profile__handle--lc"
+                  >
+                    <LeetCodeIcon width={14} height={14} /> {profile.leetcodeUsername}
+                  </a>
+                )}
+                {profile.tryhackmeUsername && (
+                  <a
+                    href={`https://tryhackme.com/r/p/${profile.tryhackmeUsername}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="public-profile__handle public-profile__handle--thm"
+                  >
+                    <TryHackMeIcon width={14} height={14} /> {profile.tryhackmeUsername}
+                  </a>
+                )}
               </div>
               <p className="label-md public-profile__since">
                 Member since {new Date(profile.memberSince).toLocaleDateString(undefined, {
@@ -205,14 +218,26 @@ const PublicProfile = () => {
             accent="secondary"
             delay={60}
           />
-          <PublicStatCard
-            label="LeetCode attempts"
-            value={stats.leetcodeTotal}
-            sub={`${stats.leetcodeWeekly} this week`}
-            icon={<LeetCodeIcon />}
-            accent="tertiary"
-            delay={120}
-          />
+          {profile.leetcodeUsername && (
+            <PublicStatCard
+              label="LeetCode attempts"
+              value={stats.leetcodeTotal}
+              sub={`${stats.leetcodeWeekly} this week`}
+              icon={<LeetCodeIcon />}
+              accent="tertiary"
+              delay={120}
+            />
+          )}
+          {profile.tryhackmeUsername && (
+            <PublicStatCard
+              label="TryHackMe events"
+              value={stats.tryhackmeTotal ?? 0}
+              sub={`${stats.tryhackmeWeekly ?? 0} this week`}
+              icon={<TryHackMeIcon />}
+              accent="danger"
+              delay={150}
+            />
+          )}
           <PublicStatCard
             label="Consistency"
             value={`${stats.consistency}%`}
@@ -228,13 +253,19 @@ const PublicProfile = () => {
           <div className="public-profile__heatmap-header">
             <h2 className="title-lg">Activity heatmap</h2>
             <div className="public-profile__heatmap-legend">
-              <span><span className="dot dot--github" /> GitHub only</span>
-              <span><span className="dot dot--leetcode" /> LeetCode only</span>
-              <span><span className="dot dot--combined" /> Both</span>
+              <span><span className="dot dot--github" /> GitHub</span>
+              {profile.leetcodeUsername && <span><span className="dot dot--leetcode" /> LeetCode</span>}
+              {profile.tryhackmeUsername && <span><span className="dot dot--tryhackme" /> TryHackMe</span>}
+              {((profile.leetcodeUsername ? 1 : 0) + (profile.tryhackmeUsername ? 1 : 0) >= 1) && (
+                <span><span className="dot dot--combined" /> Combined</span>
+              )}
             </div>
           </div>
 
-          <Heatmap days={data.days || []} />
+          <Heatmap
+            days={data.days || []}
+            connectedPlatforms={profile?.connectedPlatforms}
+          />
 
           {insights && (
             <div className="public-profile__heatmap-stats">
@@ -262,19 +293,37 @@ const PublicProfile = () => {
             } />
           </div>
 
-          <div className="card public-profile__panel fade-up" style={{ animationDelay: "340ms" }}>
-            <div className="public-profile__panel-header">
-              <div className="stat-card__icon stat-card__icon--tertiary"><LeetCodeIcon /></div>
-              <h3 className="title-lg">LeetCode activity</h3>
+          {profile.leetcodeUsername && (
+            <div className="card public-profile__panel fade-up" style={{ animationDelay: "340ms" }}>
+              <div className="public-profile__panel-header">
+                <div className="stat-card__icon stat-card__icon--tertiary"><LeetCodeIcon /></div>
+                <h3 className="title-lg">LeetCode activity</h3>
+              </div>
+              <PanelRow label="Attempts this week" value={stats.leetcodeWeekly} />
+              <PanelRow label="Last 12 months (incl. failed)" value={stats.leetcodeTotal} />
+              <PanelRow label="Profile" value={
+                <a href={`https://leetcode.com/${profile.leetcodeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--lc">
+                  leetcode.com/{profile.leetcodeUsername}
+                </a>
+              } />
             </div>
-            <PanelRow label="Attempts this week" value={stats.leetcodeWeekly} />
-            <PanelRow label="Last 12 months (incl. failed)" value={stats.leetcodeTotal} />
-            <PanelRow label="Profile" value={
-              <a href={`https://leetcode.com/${profile.leetcodeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--lc">
-                leetcode.com/{profile.leetcodeUsername}
-              </a>
-            } />
-          </div>
+          )}
+
+          {profile.tryhackmeUsername && (
+            <div className="card public-profile__panel fade-up" style={{ animationDelay: "380ms" }}>
+              <div className="public-profile__panel-header">
+                <div className="stat-card__icon stat-card__icon--danger"><TryHackMeIcon /></div>
+                <h3 className="title-lg">TryHackMe activity</h3>
+              </div>
+              <PanelRow label="Events this week" value={stats.tryhackmeWeekly ?? 0} />
+              <PanelRow label="Last 12 months" value={stats.tryhackmeTotal ?? 0} />
+              <PanelRow label="Profile" value={
+                <a href={`https://tryhackme.com/r/p/${profile.tryhackmeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--thm">
+                  tryhackme.com/r/p/{profile.tryhackmeUsername}
+                </a>
+              } />
+            </div>
+          )}
         </div>
 
         {/* ── footer ── */}
@@ -282,7 +331,7 @@ const PublicProfile = () => {
           <p className="body-md">
             Built with{" "}
             <Link to="/" className="public-profile__link">DashX</Link>
-            {" "}— track your coding consistency across GitHub and LeetCode.
+            {" "}— track your coding consistency across GitHub, LeetCode, and TryHackMe.
           </p>
         </div>
 

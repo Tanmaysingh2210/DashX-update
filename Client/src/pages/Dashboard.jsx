@@ -451,15 +451,26 @@ const Dashboard = () => {
               <h2 className="title-lg">Unified activity heatmap</h2>
               <div className="dashboard__heatmap-legend">
                 <span><span className="dot dot--github" /> GitHub</span>
-                <span><span className="dot dot--leetcode" /> LeetCode</span>
+                {user?.leetcodeUsername && (
+                  <span><span className="dot dot--leetcode" /> LeetCode</span>
+                )}
                 {user?.tryhackmeUsername && (
                   <span><span className="dot dot--tryhackme" /> TryHackMe</span>
                 )}
-                <span><span className="dot dot--combined" /> Combined</span>
+                {((user?.leetcodeUsername ? 1 : 0) + (user?.tryhackmeUsername ? 1 : 0) >= 1) && (
+                  <span><span className="dot dot--combined" /> Combined</span>
+                )}
               </div>
             </div>
 
-            <Heatmap days={days} />
+            <Heatmap
+              days={days}
+              connectedPlatforms={{
+                github: true,
+                leetcode: !!user?.leetcodeUsername,
+                tryhackme: !!user?.tryhackmeUsername,
+              }}
+            />
 
             {insights && (
               <div className="dashboard__heatmap-stats">
