@@ -59,7 +59,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // ─── helper — fetch JSON from a THM API endpoint with retry ─────────────────
 
 /**
- * Fetches JSON from a TryHackMe API endpoint using plain fetch().
+ * Fetches JSON from a TryHackMe API endpoint using ScraperAPI (or plain fetch fallback).
  * Automatically retries on 429 (rate-limited) responses with exponential backoff.
  * Returns null immediately if THM is in cooldown (after a 429 HTML block).
  *
@@ -71,8 +71,19 @@ const fetchFromTHM = async (apiPath, retries = 3) => {
   // Skip entirely if we're in cooldown from a previous 429 block
   if (isThmCoolingDown()) return null;
 
-  const url = `${THM_BASE}${apiPath}`;
-  const resp = await fetch(url, { headers: THM_HEADERS });
+  const targetUrl = `${THM_BASE}${apiPath}`;
+  const apiKey = process.env.SCRAPER_API_KEY;
+
+  let resp;
+  if (apiKey) {
+    const encoded = encodeURIComponent(targetUrl);
+    resp = await fetch(
+      `https://api.scraperapi.com/?api_key=${apiKey}&url=${encoded}`,
+      { signal: AbortSignal.timeout(30000) } // scraperapi is slower — needs longer timeout
+    );
+  } else {
+    resp = await fetch(targetUrl, { headers: THM_HEADERS });
+  }
 
   if (resp.status === 429) {
     // Check if the 429 is a Vercel security checkpoint (HTML, not JSON).
@@ -119,8 +130,7 @@ const fetchFromTHM = async (apiPath, retries = 3) => {
 
 /**
  * Fallback validation: fetch the public profile page and check if the
- * <title> tag contains the username. This endpoint is not rate-limited
- * the same way the JSON API is.
+ * <title> tag contains the username.
  *
  * @param {string} username
  * @returns {Promise<boolean>} true if the profile page exists
@@ -130,14 +140,25 @@ const validateViaProfilePage = async (username) => {
     console.log(
       `[TryHackMe] Falling back to profile page validation for: ${username}`
     );
-    const url = `${THM_BASE}/r/p/${encodeURIComponent(username)}`;
-    const resp = await fetch(url, {
-      headers: {
-        "User-Agent": THM_HEADERS["User-Agent"],
-        Accept: "text/html",
-      },
-      redirect: "follow",
-    });
+    const targetUrl = `${THM_BASE}/r/p/${encodeURIComponent(username)}`;
+    const apiKey = process.env.SCRAPER_API_KEY;
+
+    let resp;
+    if (apiKey) {
+      const encoded = encodeURIComponent(targetUrl);
+      resp = await fetch(
+        `https://api.scraperapi.com/?api_key=${apiKey}&url=${encoded}`,
+        { signal: AbortSignal.timeout(30000) }
+      );
+    } else {
+      resp = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": THM_HEADERS["User-Agent"],
+          Accept: "text/html",
+        },
+        redirect: "follow",
+      });
+    }
 
     if (!resp.ok) return false;
 
@@ -360,7 +381,8 @@ export const fetchTryHackMeProfileStats = async (username) => {
     const d = json.data;
 
     // The API has used different field names across versions — try all known ones
-    const roomsCompleted = d.roomsCompleted
+    const roomsCompleted = d.completedRoomsNumber
+      ?? d.roomsCompleted
       ?? d.completedRoomsCount
       ?? d.completedRooms
       ?? d.rooms

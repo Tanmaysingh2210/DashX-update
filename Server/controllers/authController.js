@@ -120,7 +120,7 @@ export const connectLeetCode = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { leetcodeUsername: cleaned, syncStatus: "syncing" },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     res.status(200).json({
@@ -196,7 +196,7 @@ export const connectTryHackMe = async (req, res) => {
         tryhackmeUserId: cleaned, // THM v2 API uses username directly
         syncStatus: "syncing",
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     res.status(200).json({
@@ -256,7 +256,7 @@ export const disconnectPlatform = async (req, res) => {
       updates.tryhackmeUserId = null;
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });
     res.status(200).json({ success: true, message: `${platform} disconnected`, user: formatUser(user) });
   } catch (err) {
     console.error("[disconnectPlatform] error:", err.message);
@@ -278,7 +278,7 @@ export const updatePreferences = async (req, res) => {
     if (typeof weeklyReports === "boolean") updates.weeklyReports = weeklyReports;
     if (typeof notifications === "boolean") updates.notifications = notifications;
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });
     res.status(200).json({ success: true, message: "Preferences updated", user: formatUser(user) });
   } catch (err) {
     console.error("[updatePreferences] error:", err.message);

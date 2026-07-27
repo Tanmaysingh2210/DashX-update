@@ -27,7 +27,7 @@ export const syncActivity = async (req, res) => {
     // need at least GitHub (always connected) — no LeetCode/THM required
     if (user.lastSynced) {
       const minutesSince = (Date.now() - new Date(user.lastSynced).getTime()) / 60000;
-      if (minutesSince < 60) {
+      if (minutesSince < 1) {
         return res.status(429).json({
           success: false,
           message: `Synced ${Math.floor(minutesSince)} min ago. Wait ${Math.ceil(60 - minutesSince)} more minutes.`,

@@ -84,7 +84,7 @@ const userSchema = new Schema(
         roomsCompleted: { type: Number, default: null },
         level: { type: Number, default: 0 },
         totalPoints: { type: Number, default: 0 },
-        rank: { type: Number, default: null },
+        rank: { type: Schema.Types.Mixed, default: null },
       },
     },
   },
