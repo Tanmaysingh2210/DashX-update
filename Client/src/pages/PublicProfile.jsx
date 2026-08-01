@@ -26,6 +26,23 @@ const utcDateStr = (daysAgo = 0) => {
   )).toISOString().split("T")[0];
 };
 
+/**
+ * Formats a YYYY-MM-DD date string into a relative "Xd ago" label.
+ * Uses UTC parsing to avoid timezone shift issues.
+ */
+const formatDateRelative = (dateStr) => {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dateUTC = new Date(Date.UTC(y, m - 1, d));
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const diffMs = todayUTC.getTime() - dateUTC.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return `${diffDays}d ago`;
+};
+
 const PublicProfile = () => {
   const { username } = useParams();
   const [data, setData] = useState(null);
@@ -94,6 +111,7 @@ const PublicProfile = () => {
 
   // safe destructure to avoid TDZ when using below
   const { profile, stats } = data || {};
+  const pStats = profile?.platformStats || {};
 
   useMeta(
     profile
@@ -131,6 +149,7 @@ const PublicProfile = () => {
     );
   }
 
+  const connectedCount = 1 + (profile.leetcodeUsername ? 1 : 0) + (profile.tryhackmeUsername ? 1 : 0);
 
   return (
     <div className="public-profile fade-in">
@@ -178,6 +197,24 @@ const PublicProfile = () => {
                   </a>
                 )}
               </div>
+
+              {/* ── connected platforms badges ── */}
+              <div className="public-profile__platforms">
+                <span className="public-profile__platform-badge public-profile__platform-badge--github">
+                  <GitHubIcon width={12} height={12} /> GitHub
+                </span>
+                {profile.leetcodeUsername && (
+                  <span className="public-profile__platform-badge public-profile__platform-badge--lc">
+                    <LeetCodeIcon width={12} height={12} /> LeetCode
+                  </span>
+                )}
+                {profile.tryhackmeUsername && (
+                  <span className="public-profile__platform-badge public-profile__platform-badge--thm">
+                    <TryHackMeIcon width={12} height={12} /> TryHackMe
+                  </span>
+                )}
+              </div>
+
               <p className="label-md public-profile__since">
                 Member since {new Date(profile.memberSince).toLocaleDateString(undefined, {
                   month: "long", year: "numeric", timeZone: "UTC"
@@ -277,52 +314,79 @@ const PublicProfile = () => {
           )}
         </div>
 
-        {/* ── bottom panels ── */}
-        <div className="public-profile__panels">
-          <div className="card public-profile__panel fade-up" style={{ animationDelay: "280ms" }}>
-            <div className="public-profile__panel-header">
-              <div className="stat-card__icon stat-card__icon--secondary"><GitHubIcon /></div>
-              <h3 className="title-lg">GitHub activity</h3>
-            </div>
-            <PanelRow label="Contributions this week" value={stats.githubWeekly} />
-            <PanelRow label="Last 12 months" value={stats.githubTotal} />
-            <PanelRow label="Profile" value={
-              <a href={`https://github.com/${profile.githubUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link">
-                github.com/{profile.githubUsername}
-              </a>
-            } />
-          </div>
+        {/* ── activity panels (dashboard-style) ── */}
+        <div className={`public-profile__panels ${connectedCount >= 3 ? 'public-profile__panels--three' : ''}`}>
+          <ActivityPanel
+            title="GitHub activity"
+            accent="secondary"
+            icon={<GitHubIcon />}
+            rows={[
+              { label: "Contributions this week", value: stats.githubWeekly ?? 0 },
+              { label: "Last 12 months", value: stats.githubTotal ?? 0 },
+              { label: "Public repos", value: pStats.github?.publicRepos ?? "—" },
+              {
+                label: "Profile",
+                value: (
+                  <a href={`https://github.com/${profile.githubUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link">
+                    github.com/{profile.githubUsername}
+                  </a>
+                ),
+              },
+            ]}
+            lastActive={stats.lastGithub}
+            delay={280}
+          />
 
           {profile.leetcodeUsername && (
-            <div className="card public-profile__panel fade-up" style={{ animationDelay: "340ms" }}>
-              <div className="public-profile__panel-header">
-                <div className="stat-card__icon stat-card__icon--tertiary"><LeetCodeIcon /></div>
-                <h3 className="title-lg">LeetCode activity</h3>
-              </div>
-              <PanelRow label="Attempts this week" value={stats.leetcodeWeekly} />
-              <PanelRow label="Last 12 months (incl. failed)" value={stats.leetcodeTotal} />
-              <PanelRow label="Profile" value={
-                <a href={`https://leetcode.com/${profile.leetcodeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--lc">
-                  leetcode.com/{profile.leetcodeUsername}
-                </a>
-              } />
-            </div>
+            <ActivityPanel
+              title="LeetCode activity"
+              accent="tertiary"
+              icon={<LeetCodeIcon />}
+              rows={[
+                { label: "Attempts this week", value: stats.leetcodeWeekly ?? 0 },
+                { label: "Last 12 months (incl. failed)", value: stats.leetcodeTotal ?? 0 },
+                { label: "Questions solved", value: pStats.leetcode?.totalSolved ?? "—" },
+                {
+                  label: "Difficulty",
+                  value: pStats.leetcode
+                    ? <DifficultyBadges easy={pStats.leetcode.easy} medium={pStats.leetcode.medium} hard={pStats.leetcode.hard} />
+                    : "—",
+                },
+                {
+                  label: "Profile",
+                  value: (
+                    <a href={`https://leetcode.com/${profile.leetcodeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--lc">
+                      leetcode.com/{profile.leetcodeUsername}
+                    </a>
+                  ),
+                },
+              ]}
+              lastActive={stats.lastLeetcode}
+              delay={340}
+            />
           )}
 
           {profile.tryhackmeUsername && (
-            <div className="card public-profile__panel fade-up" style={{ animationDelay: "380ms" }}>
-              <div className="public-profile__panel-header">
-                <div className="stat-card__icon stat-card__icon--danger"><TryHackMeIcon /></div>
-                <h3 className="title-lg">TryHackMe activity</h3>
-              </div>
-              <PanelRow label="Events this week" value={stats.tryhackmeWeekly ?? 0} />
-              <PanelRow label="Last 12 months" value={stats.tryhackmeTotal ?? 0} />
-              <PanelRow label="Profile" value={
-                <a href={`https://tryhackme.com/r/p/${profile.tryhackmeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--thm">
-                  tryhackme.com/r/p/{profile.tryhackmeUsername}
-                </a>
-              } />
-            </div>
+            <ActivityPanel
+              title="TryHackMe activity"
+              accent="danger"
+              icon={<TryHackMeIcon />}
+              rows={[
+                { label: "Events this week", value: stats.tryhackmeWeekly ?? 0 },
+                { label: "Last 12 months", value: stats.tryhackmeTotal ?? 0 },
+                { label: "Rooms completed", value: pStats.tryhackme?.roomsCompleted ?? "—" },
+                {
+                  label: "Profile",
+                  value: (
+                    <a href={`https://tryhackme.com/r/p/${profile.tryhackmeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--thm">
+                      tryhackme.com/r/p/{profile.tryhackmeUsername}
+                    </a>
+                  ),
+                },
+              ]}
+              lastActive={stats.lastTryhackme}
+              delay={380}
+            />
           )}
         </div>
 
@@ -364,10 +428,36 @@ const HeatmapStat = ({ icon, label, value }) => (
   </div>
 );
 
-const PanelRow = ({ label, value }) => (
-  <div className="public-profile__panel-row">
-    <span className="body-md public-profile__panel-label">{label}</span>
-    <span className="title-lg">{value}</span>
+const ActivityPanel = ({ title, icon, accent, rows, lastActive, delay }) => (
+  <div className={`card activity-panel activity-panel--${accent} fade-up`} style={{ animationDelay: `${delay}ms` }}>
+    <div className="activity-panel__header">
+      <div className={`stat-card__icon stat-card__icon--${accent}`}>{icon}</div>
+      <h3 className="title-lg">{title}</h3>
+    </div>
+
+    <div className="activity-panel__rows">
+      {rows.map((row) => (
+        <div className="activity-panel__row" key={row.label}>
+          <span className="body-md activity-panel__row-label">{row.label}</span>
+          <span className={row.mono ? "mono" : "title-lg"}>{row.value}</span>
+        </div>
+      ))}
+    </div>
+
+    <div className="activity-panel__footer">
+      <span className={`dot dot--${accent === "secondary" ? "github" : accent === "danger" ? "tryhackme" : "leetcode"}`} />
+      <span className="label-md activity-panel__last-active">
+        Last active: {lastActive ? formatDateRelative(lastActive) : "—"}
+      </span>
+    </div>
+  </div>
+);
+
+const DifficultyBadges = ({ easy, medium, hard }) => (
+  <div className="difficulty-badges">
+    <span className="difficulty-badge difficulty-badge--easy">{easy} Easy</span>
+    <span className="difficulty-badge difficulty-badge--medium">{medium} Med</span>
+    <span className="difficulty-badge difficulty-badge--hard">{hard} Hard</span>
   </div>
 );
 

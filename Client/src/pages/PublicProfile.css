@@ -82,6 +82,49 @@
   opacity: 0.8;
 }
 
+/* ── connected platforms badges ── */
+
+.public-profile__platforms {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.public-profile__platform-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.public-profile__platform-badge:hover {
+  transform: translateY(-1px);
+}
+
+.public-profile__platform-badge--github {
+  background-color: rgba(123, 219, 128, 0.12);
+  color: #7bdb80;
+}
+
+.public-profile__platform-badge--lc {
+  background-color: rgba(255, 184, 103, 0.12);
+  color: #ffb867;
+}
+
+.public-profile__platform-badge--thm {
+  background-color: rgba(224, 82, 82, 0.12);
+  color: #e05252;
+}
+
 .public-profile__since {
   text-transform: none;
   letter-spacing: 0;
@@ -185,7 +228,7 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-/* ── panels ── */
+/* ── activity panels (dashboard-style) ── */
 
 .public-profile__panels {
   display: grid;
@@ -193,34 +236,107 @@
   gap: var(--space-6);
 }
 
-.public-profile__panel {
-  display: flex;
-  flex-direction: column;
+/* 3-column layout when all three platforms are connected */
+.public-profile__panels--three {
+  grid-template-columns: repeat(3, 1fr);
 }
 
-.public-profile__panel-header {
+.activity-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.activity-panel--secondary {
+  border-color: rgba(123, 219, 128, 0.18);
+}
+
+.activity-panel--tertiary {
+  border-color: rgba(255, 184, 103, 0.18);
+}
+
+.activity-panel--danger {
+  border-color: rgba(224, 82, 82, 0.2);
+}
+
+.activity-panel__header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding-bottom: var(--space-4);
-  margin-bottom: var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.public-profile__panel-row {
+.activity-panel__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-panel__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--fill-ghost);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.public-profile__panel-row:last-child {
+.activity-panel__row:last-child {
   border-bottom: none;
 }
 
-.public-profile__panel-label {
+.activity-panel__row:hover {
+  background-color: var(--fill-ghost);
+}
+
+.activity-panel__row-label {
   color: var(--color-on-surface-variant);
+}
+
+.activity-panel__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.activity-panel__last-active {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── difficulty badges (LeetCode Easy / Medium / Hard) ── */
+
+.difficulty-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.difficulty-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.difficulty-badge--easy {
+  background-color: rgba(0, 184, 148, 0.12);
+  color: #00b894;
+}
+
+.difficulty-badge--medium {
+  background-color: rgba(253, 203, 110, 0.12);
+  color: #fdcb6e;
+}
+
+.difficulty-badge--hard {
+  background-color: rgba(255, 118, 117, 0.12);
+  color: #ff7675;
 }
 
 /* ── links ── */
@@ -264,16 +380,20 @@
   .public-profile__heatmap-stats {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .public-profile__panels {
+    grid-template-columns: 1fr;
+  }
+
+  .public-profile__panels--three {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
   .public-profile__hero-inner {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .public-profile__panels {
-    grid-template-columns: 1fr;
   }
 
   .public-profile__heatmap-legend span:nth-child(3) {

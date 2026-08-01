@@ -11,7 +11,7 @@ export const getPublicProfile = async (req, res) => {
 
     const user = await User.findOne({
       githubUsername: { $regex: new RegExp(`^${username}$`, "i") },
-    }).select("githubUsername leetcodeUsername tryhackmeUsername avatar isPublic longestStreak createdAt");
+    }).select("githubUsername leetcodeUsername tryhackmeUsername avatar isPublic longestStreak createdAt platformStats");
 
     if (!user)                   return res.status(404).json({ success: false, message: "Profile not found" });
     if (user.isPublic === false)  return res.status(404).json({ success: false, message: "This profile is private" });
@@ -48,6 +48,10 @@ export const getPublicProfile = async (req, res) => {
       .toISOString().split("T")[0];
     const last7 = days.filter((d) => d.date >= sevenDaysAgo);
 
+    const lastGithub    = [...days].reverse().find((d) => d.githubCount > 0);
+    const lastLeetcode  = [...days].reverse().find((d) => d.leetcodeCount > 0);
+    const lastTryhackme = [...days].reverse().find((d) => (d.tryhackmeCount || 0) > 0);
+
     res.status(200).json({
       success: true,
       profile: {
@@ -61,6 +65,7 @@ export const getPublicProfile = async (req, res) => {
           leetcode:  !!user.leetcodeUsername,
           tryhackme: !!user.tryhackmeUsername,
         },
+        platformStats: user.platformStats || {},
       },
       stats: {
         currentStreak,
@@ -71,6 +76,9 @@ export const getPublicProfile = async (req, res) => {
         githubWeekly:    last7.reduce((s, d) => s + d.githubCount,    0),
         leetcodeWeekly:  last7.reduce((s, d) => s + d.leetcodeCount,  0),
         tryhackmeWeekly: last7.reduce((s, d) => s + (d.tryhackmeCount || 0), 0),
+        lastGithub:      lastGithub?.date || null,
+        lastLeetcode:    lastLeetcode?.date || null,
+        lastTryhackme:   lastTryhackme?.date || null,
         consistency,
         activeIn30,
         totalActiveDays: days.length,

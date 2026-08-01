@@ -7,28 +7,23 @@ const DAY_LABELS   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 /**
  * Determines cell color type based on which platforms had activity.
  *
- * Priority (when multiple platforms active on same day):
- *   github + leetcode + tryhackme → "all"      (white/bright)
- *   github + leetcode             → "both"      (purple)
- *   github + tryhackme            → "gh-thm"   (teal)
- *   leetcode + tryhackme          → "lc-thm"   (pink)
- *   github only                   → "github"   (green)
- *   leetcode only                 → "leetcode" (orange)
- *   tryhackme only                → "tryhackme"(cyan/red)
- *   none                          → "empty"
+ * Colors:
+ *   any 2+ platforms  → "combined"  (purple)
+ *   github only       → "github"    (green)
+ *   leetcode only     → "leetcode"  (orange)
+ *   tryhackme only    → "tryhackme" (red)
+ *   none              → "empty"
  */
 const getCellType = (day) => {
   const g = day.githubCount    > 0;
   const l = day.leetcodeCount  > 0;
   const t = (day.tryhackmeCount || 0) > 0;
 
-  if (!g && !l && !t) return "empty";
-  if (g && l && t)    return "all";
-  if (g && l)         return "both";
-  if (g && t)         return "gh-thm";
-  if (l && t)         return "lc-thm";
-  if (g)              return "github";
-  if (l)              return "leetcode";
+  const active = (g ? 1 : 0) + (l ? 1 : 0) + (t ? 1 : 0);
+  if (active === 0) return "empty";
+  if (active >= 2)  return "combined";
+  if (g) return "github";
+  if (l) return "leetcode";
   return "tryhackme";
 };
 
@@ -224,7 +219,7 @@ const Heatmap = ({ days = [], connectedPlatforms }) => {
             <span className="heatmap__legend-group">
               <span className="dot dot--combined" /> Combined
               <span className="heatmap__legend-swatches">
-                {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--both-${l}`} />)}
+                {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--combined-${l}`} />)}
               </span>
             </span>
           )}
