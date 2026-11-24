@@ -68,20 +68,14 @@ const evalExpr = (doc, expr) => {
   return expr;
 };
 
-const applyUpdate = (doc, update) => {
+const applyUpdate = (doc, update, isInsert = false) => {
   if (Array.isArray(update)) {
-    for (const stage of update) {
-      if (stage.$set) {
-        const nextValues = {};
-        for (const [k, v] of Object.entries(stage.$set)) {
-          nextValues[k] = evalExpr(doc, v);
-        }
-        Object.assign(doc, nextValues);
-      }
-    }
-    return;
+    throw new Error("Cannot pass an array to query updates unless the `updatePipeline` option is set.");
   }
-  if (update.$set || update.$inc) {
+  if (update.$set || update.$inc || update.$setOnInsert) {
+    if (isInsert && update.$setOnInsert) {
+      for (const [k, v] of Object.entries(update.$setOnInsert)) setNested(doc, k, v);
+    }
     if (update.$set) {
       for (const [k, v] of Object.entries(update.$set)) setNested(doc, k, v);
     }
@@ -98,6 +92,7 @@ const applyUpdate = (doc, update) => {
 const makeChainable = (valueOrFn) => {
   const chain = {
     select() { return chain; },
+    session() { return chain; },
     sort(spec) {
       chain._sort = spec;
       return chain;
@@ -122,9 +117,17 @@ const makeChainable = (valueOrFn) => {
 const matchDateFilter = (docDate, cond) => {
   if (!cond) return true;
   if (typeof cond === "string") return docDate === cond;
+  if (cond.$in && !cond.$in.includes(docDate)) return false;
   if (cond.$gte && docDate < cond.$gte) return false;
   if (cond.$lte && docDate > cond.$lte) return false;
   if (cond.$nin && cond.$nin.includes(docDate)) return false;
+  return true;
+};
+
+const matchesClause = (act, clause) => {
+  if (clause.totalCount?.$gt !== undefined && !(act.totalCount > clause.totalCount.$gt)) return false;
+  if (clause.codeforcesCount?.$gt !== undefined && !(act.codeforcesCount > clause.codeforcesCount.$gt)) return false;
+  if (clause.date && !matchDateFilter(act.date, clause.date)) return false;
   return true;
 };
 
@@ -214,9 +217,8 @@ before(() => {
     const out = [];
     for (const act of activitiesStore.values()) {
       if (String(act.userId) !== uid) continue;
-      if (filter.totalCount?.$gt !== undefined && !(act.totalCount > filter.totalCount.$gt)) continue;
-      if (filter.codeforcesCount?.$gt !== undefined && !(act.codeforcesCount > filter.codeforcesCount.$gt)) continue;
-      if (filter.date && !matchDateFilter(act.date, filter.date)) continue;
+      if (!matchesClause(act, filter)) continue;
+      if (filter.$or && !filter.$or.some((sub) => matchesClause(act, sub))) continue;
       out.push(act);
     }
     return out;
@@ -243,7 +245,9 @@ before(() => {
       const { filter, update, upsert } = op.updateOne;
       const key = `${String(filter.userId)}:${filter.date}`;
       let doc = activitiesStore.get(key);
+      let isInsert = false;
       if (!doc && upsert) {
+        isInsert = true;
         doc = {
           userId: filter.userId,
           date: filter.date,
@@ -255,7 +259,7 @@ before(() => {
         };
       }
       if (doc) {
-        applyUpdate(doc, update);
+        applyUpdate(doc, update, isInsert);
         activitiesStore.set(key, doc);
       }
     }
@@ -753,5 +757,53 @@ describe("Codeforces Refactor (Activity + User + CodeforcesProfile only)", () =>
     } finally {
       mongoose.startSession = prevStartSession;
     }
+  });
+
+  it("21. Full reconciliation clears stale Codeforces counts without pipeline arrays and preserves other platforms", async () => {
+    const staleDay = "2026-11-18";
+    const activeDay = "2026-11-24";
+    const tsActive = Math.floor(Date.UTC(2026, 10, 24, 10, 0, 0) / 1000);
+    const user = seedUser({ codeforcesHandle: "tanmayRajpoot", codeforcesLastSubmissionId: null });
+
+    activitiesStore.set(`${String(user._id)}:${staleDay}`, {
+      userId: user._id, date: staleDay, githubCount: 3, leetcodeCount: 2, tryhackmeCount: 1, codeforcesCount: 4, totalCount: 10,
+    });
+
+    mockCfFetch((url) => {
+      if (url.includes("/user.info")) {
+        return { body: { status: "OK", result: [{ handle: "tanmayRajpoot", contribution: 0 }] } };
+      }
+      if (url.includes("/user.rating")) {
+        return { body: { status: "OK", result: [] } };
+      }
+      return {
+        body: {
+          status: "OK",
+          result: [
+            { id: 301, creationTimeSeconds: tsActive, verdict: "OK", contestId: 4, problem: { index: "A", name: "Watermelon" } },
+          ],
+        },
+      };
+    });
+
+    await codeforcesService.runFullCodeforcesReconciliation(String(user._id), "tanmayRajpoot");
+
+    const updated = usersStore.get(String(user._id));
+    assert.equal(updated.codeforcesSyncStatus, "done");
+    assert.equal(updated.codeforcesLastSubmissionId, 301);
+    assert.equal(updated.platformStats.codeforces.totalSubmissions, 1);
+    assert.equal(updated.platformStats.codeforces.acceptedSubmissions, 1);
+    assert.equal(updated.platformStats.codeforces.uniqueSolved, 1);
+
+    const staleAct = activitiesStore.get(`${String(user._id)}:${staleDay}`);
+    assert.equal(staleAct.githubCount, 3);
+    assert.equal(staleAct.leetcodeCount, 2);
+    assert.equal(staleAct.tryhackmeCount, 1);
+    assert.equal(staleAct.codeforcesCount, 0);
+    assert.equal(staleAct.totalCount, 6);
+
+    const newAct = activitiesStore.get(`${String(user._id)}:${activeDay}`);
+    assert.equal(newAct.codeforcesCount, 1);
+    assert.equal(newAct.totalCount, 1);
   });
 });

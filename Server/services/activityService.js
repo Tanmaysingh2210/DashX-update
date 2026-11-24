@@ -214,30 +214,34 @@ const fetchFromAllPlatforms = async (
 const saveToDb = async (userId, mergedDays) => {
   if (!mergedDays.length) return;
 
-  const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, tryhackmeCount }) => ({
-    updateOne: {
-      filter: { userId, date },
-      update: [
-        {
+  const dates = mergedDays.map((d) => d.date);
+  const existingDocs = await Activity.find({
+    userId,
+    date: { $in: dates },
+  })
+    .select("-_id date codeforcesCount")
+    .lean();
+
+  const cfByDate = new Map(existingDocs.map((d) => [d.date, d.codeforcesCount || 0]));
+
+  const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, tryhackmeCount }) => {
+    const codeforcesCount = cfByDate.get(date) || 0;
+    return {
+      updateOne: {
+        filter: { userId, date },
+        update: {
           $set: {
             githubCount,
             leetcodeCount,
             tryhackmeCount,
-            codeforcesCount: { $ifNull: ["$codeforcesCount", 0] },
-            totalCount: {
-              $add: [
-                githubCount,
-                leetcodeCount,
-                tryhackmeCount,
-                { $ifNull: ["$codeforcesCount", 0] },
-              ],
-            },
+            codeforcesCount,
+            totalCount: githubCount + leetcodeCount + tryhackmeCount + codeforcesCount,
           },
         },
-      ],
-      upsert: true,
-    },
-  }));
+        upsert: true,
+      },
+    };
+  });
 
   const result = await Activity.bulkWrite(bulkOps, { ordered: false });
   console.log(`[Sync] DB — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);

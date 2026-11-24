@@ -401,57 +401,67 @@ const runAtomicallyIfSupported = async (fn) => {
 const applyFullDailyCounts = async (userObjectId, dailyCounts, session = null) => {
   const activeDates = Array.from(dailyCounts.keys());
 
+  const existingDocs = await Activity.find({
+    userId: userObjectId,
+    $or: [
+      ...(activeDates.length > 0 ? [{ date: { $in: activeDates } }] : []),
+      { codeforcesCount: { $gt: 0 } },
+    ],
+  })
+    .select("date githubCount leetcodeCount tryhackmeCount codeforcesCount")
+    .session(session)
+    .lean();
+
+  const existingByDate = new Map(existingDocs.map((doc) => [doc.date, doc]));
+  const bulkOps = [];
+
   // Clear stale codeforcesCount on dates no longer present (e.g. handle switch),
   // preserving GitHub, LeetCode, and TryHackMe counts untouched.
-  await Activity.updateMany(
-    {
-      userId: userObjectId,
-      codeforcesCount: { $gt: 0 },
-      ...(activeDates.length > 0 && { date: { $nin: activeDates } }),
-    },
-    [
-      {
-        $set: {
-          codeforcesCount: 0,
-          totalCount: {
-            $add: [
-              { $ifNull: ["$githubCount", 0] },
-              { $ifNull: ["$leetcodeCount", 0] },
-              { $ifNull: ["$tryhackmeCount", 0] },
-            ],
-          },
-        },
-      },
-    ],
-    session ? { session } : {}
-  );
-
-  if (dailyCounts.size === 0) return;
-
-  const bulkOps = Array.from(dailyCounts.entries()).map(([date, count]) => ({
-    updateOne: {
-      filter: { userId: userObjectId, date },
-      update: [
-        {
-          $set: {
-            githubCount: { $ifNull: ["$githubCount", 0] },
-            leetcodeCount: { $ifNull: ["$leetcodeCount", 0] },
-            tryhackmeCount: { $ifNull: ["$tryhackmeCount", 0] },
-            codeforcesCount: count,
-            totalCount: {
-              $add: [
-                { $ifNull: ["$githubCount", 0] },
-                { $ifNull: ["$leetcodeCount", 0] },
-                { $ifNull: ["$tryhackmeCount", 0] },
-                count,
-              ],
+  for (const doc of existingDocs) {
+    if ((doc.codeforcesCount || 0) > 0 && !dailyCounts.has(doc.date)) {
+      const baseTotal =
+        (doc.githubCount || 0) + (doc.leetcodeCount || 0) + (doc.tryhackmeCount || 0);
+      bulkOps.push({
+        updateOne: {
+          filter: { userId: userObjectId, date: doc.date },
+          update: {
+            $set: {
+              codeforcesCount: 0,
+              totalCount: baseTotal,
             },
           },
         },
-      ],
-      upsert: true,
-    },
-  }));
+      });
+    }
+  }
+
+  for (const [date, count] of dailyCounts.entries()) {
+    const existing = existingByDate.get(date);
+    const baseTotal =
+      (existing?.githubCount || 0) +
+      (existing?.leetcodeCount || 0) +
+      (existing?.tryhackmeCount || 0);
+
+    bulkOps.push({
+      updateOne: {
+        filter: { userId: userObjectId, date },
+        update: {
+          $set: {
+            codeforcesCount: count,
+            totalCount: baseTotal + count,
+          },
+          $setOnInsert: {
+            githubCount: 0,
+            leetcodeCount: 0,
+            tryhackmeCount: 0,
+          },
+        },
+        upsert: true,
+      },
+    });
+  }
+
+  if (bulkOps.length === 0) return;
 
   await Activity.bulkWrite(bulkOps, {
     ordered: false,
@@ -462,33 +472,43 @@ const applyFullDailyCounts = async (userObjectId, dailyCounts, session = null) =
 const applyIncrementalDailyDeltas = async (userObjectId, dailyDeltas, session = null) => {
   if (dailyDeltas.size === 0) return;
 
-  const bulkOps = Array.from(dailyDeltas.entries()).map(([date, delta]) => ({
-    updateOne: {
-      filter: { userId: userObjectId, date },
-      update: [
-        {
+  const deltaDates = Array.from(dailyDeltas.keys());
+  const existingDocs = await Activity.find({
+    userId: userObjectId,
+    date: { $in: deltaDates },
+  })
+    .select("date githubCount leetcodeCount tryhackmeCount codeforcesCount")
+    .session(session)
+    .lean();
+
+  const existingByDate = new Map(existingDocs.map((doc) => [doc.date, doc]));
+
+  const bulkOps = Array.from(dailyDeltas.entries()).map(([date, delta]) => {
+    const existing = existingByDate.get(date);
+    const nextCf = (existing?.codeforcesCount || 0) + delta;
+    const baseTotal =
+      (existing?.githubCount || 0) +
+      (existing?.leetcodeCount || 0) +
+      (existing?.tryhackmeCount || 0);
+
+    return {
+      updateOne: {
+        filter: { userId: userObjectId, date },
+        update: {
           $set: {
-            githubCount: { $ifNull: ["$githubCount", 0] },
-            leetcodeCount: { $ifNull: ["$leetcodeCount", 0] },
-            tryhackmeCount: { $ifNull: ["$tryhackmeCount", 0] },
-            codeforcesCount: {
-              $add: [{ $ifNull: ["$codeforcesCount", 0] }, delta],
-            },
-            totalCount: {
-              $add: [
-                { $ifNull: ["$githubCount", 0] },
-                { $ifNull: ["$leetcodeCount", 0] },
-                { $ifNull: ["$tryhackmeCount", 0] },
-                { $ifNull: ["$codeforcesCount", 0] },
-                delta,
-              ],
-            },
+            codeforcesCount: nextCf,
+            totalCount: baseTotal + nextCf,
+          },
+          $setOnInsert: {
+            githubCount: 0,
+            leetcodeCount: 0,
+            tryhackmeCount: 0,
           },
         },
-      ],
-      upsert: true,
-    },
-  }));
+        upsert: true,
+      },
+    };
+  });
 
   await Activity.bulkWrite(bulkOps, {
     ordered: false,
