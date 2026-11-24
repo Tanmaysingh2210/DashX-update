@@ -6,6 +6,7 @@ import {
   validateLeetCodeUsername,
 } from "../services/leetcodeService.js";
 import { validateTryHackMeUsername } from "../services/tryhackmeService.js";
+import { validateCodeforcesHandle, runIncrementalCodeforcesSync } from "../services/codeforcesService.js";
 import User from "../models/User.js";
 import Activity from "../models/Activity.js";
 import { extractLeetCodeUsername } from "../utils/sanitize.js";
@@ -27,7 +28,7 @@ export const syncActivity = async (req, res) => {
     // need at least GitHub (always connected) — no LeetCode/THM required
     if (user.lastSynced) {
       const minutesSince = (Date.now() - new Date(user.lastSynced).getTime()) / 60000;
-      if (minutesSince < 1) {
+      if (minutesSince < 1){
         return res.status(429).json({
           success: false,
           message: `Synced ${Math.floor(minutesSince)} min ago. Wait ${Math.ceil(60 - minutesSince)} more minutes.`,
@@ -36,14 +37,31 @@ export const syncActivity = async (req, res) => {
       }
     }
 
-    const stats = await syncUserActivity(
-      user._id,
-      user.githubUsername,
-      user.leetcodeUsername || null,
-      user.tryhackmeUsername || null,
-      user.tryhackmeUserId || null,
-      user.lastSynced
-    );
+    const syncPromises = [
+      syncUserActivity(
+        user._id,
+        user.githubUsername,
+        user.leetcodeUsername || null,
+        user.tryhackmeUsername || null,
+        user.tryhackmeUserId || null,
+        user.lastSynced
+      )
+    ];
+
+    if (user.codeforcesHandle) {
+      syncPromises.push(
+        runIncrementalCodeforcesSync(
+          user._id,
+          user.codeforcesHandle,
+          user.codeforcesLastSubmissionId
+        ).catch((cfErr) => {
+          console.warn("[syncActivity] Codeforces incremental sync failed:", cfErr.message);
+          return null;
+        })
+      );
+    }
+
+    const [stats] = await Promise.all(syncPromises);
 
     res.status(200).json({
       success: true,
@@ -123,7 +141,7 @@ export const getStats = async (req, res) => {
 
     const allDays = await Activity.find({ userId, totalCount: { $gt: 0 } })
       .sort({ date: 1 })
-      .select("-_id date totalCount githubCount leetcodeCount tryhackmeCount")
+      .select("-_id date totalCount githubCount leetcodeCount tryhackmeCount codeforcesCount")
       .lean();
 
     if (!allDays.length) {
@@ -137,6 +155,7 @@ export const getStats = async (req, res) => {
             github: true,
             leetcode: !!req.user.leetcodeUsername,
             tryhackme: !!req.user.tryhackmeUsername,
+            codeforces: !!req.user.codeforcesHandle,
           },
         },
       });
@@ -164,6 +183,7 @@ export const getStats = async (req, res) => {
           github: true,
           leetcode: !!req.user.leetcodeUsername,
           tryhackme: !!req.user.tryhackmeUsername,
+          codeforces: !!req.user.codeforcesHandle,
         },
       },
     });
@@ -186,7 +206,7 @@ export const getStats = async (req, res) => {
 export const getPlatformStats = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .select("githubUsername leetcodeUsername tryhackmeUsername platformStats")
+      .select("githubUsername leetcodeUsername tryhackmeUsername codeforcesHandle platformStats")
       .lean();
 
     const cached = user.platformStats || {};
@@ -202,24 +222,27 @@ export const getPlatformStats = async (req, res) => {
       totalCount: { $gt: 0 },
     })
       .sort({ date: -1 })
-      .select("-_id date githubCount leetcodeCount tryhackmeCount")
+      .select("-_id date githubCount leetcodeCount tryhackmeCount codeforcesCount")
       .lean();
 
     const weeklyGithub = recentDays.reduce((s, d) => s + d.githubCount, 0);
     const weeklyLeetcode = recentDays.reduce((s, d) => s + d.leetcodeCount, 0);
     const weeklyTryhackme = recentDays.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const weeklyCodeforces = recentDays.reduce((s, d) => s + (d.codeforcesCount || 0), 0);
 
     // Derive last active date per platform from Activity data (last 365 days)
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0];
 
-    const [lastGhDay, lastLcDay, lastThmDay] = await Promise.all([
+    const [lastGhDay, lastLcDay, lastThmDay, lastCfDay] = await Promise.all([
       Activity.findOne({ userId: req.user._id, githubCount: { $gt: 0 }, date: { $gte: oneYearAgo } })
         .sort({ date: -1 }).select("-_id date").lean(),
       Activity.findOne({ userId: req.user._id, leetcodeCount: { $gt: 0 }, date: { $gte: oneYearAgo } })
         .sort({ date: -1 }).select("-_id date").lean(),
       Activity.findOne({ userId: req.user._id, tryhackmeCount: { $gt: 0 }, date: { $gte: oneYearAgo } })
+        .sort({ date: -1 }).select("-_id date").lean(),
+      Activity.findOne({ userId: req.user._id, codeforcesCount: { $gt: 0 }, date: { $gte: oneYearAgo } })
         .sort({ date: -1 }).select("-_id date").lean(),
     ]);
 
@@ -255,9 +278,24 @@ export const getPlatformStats = async (req, res) => {
         }
       : null;
 
+    const codeforces = user.codeforcesHandle
+      ? {
+          rating: cached.codeforces?.rating ?? null,
+          maxRating: cached.codeforces?.maxRating ?? null,
+          rank: cached.codeforces?.rank ?? null,
+          maxRank: cached.codeforces?.maxRank ?? null,
+          totalSubmissions: cached.codeforces?.totalSubmissions ?? 0,
+          acceptedSubmissions: cached.codeforces?.acceptedSubmissions ?? 0,
+          uniqueSolved: cached.codeforces?.uniqueSolved ?? 0,
+          submissionsThisWeek: weeklyCodeforces,
+          handle: user.codeforcesHandle,
+          lastActive: lastCfDay?.date || null,
+        }
+      : null;
+
     res.status(200).json({
       success: true,
-      platformStats: { github, leetcode, tryhackme },
+      platformStats: { github, leetcode, tryhackme, codeforces },
     });
   } catch (err) {
     console.error("[getPlatformStats] error:", err.message);
@@ -276,24 +314,35 @@ export const getPlatformStats = async (req, res) => {
  */
 export const validateUsernames = async (req, res) => {
   try {
-    const { leetcodeUsername, tryhackmeUsername } = req.body;
+    const { leetcodeUsername, tryhackmeUsername, codeforcesHandle } = req.body;
     const { githubUsername } = req.user;
 
     const checks = [validateGitHubUsername(githubUsername)];
     const haslc = !!leetcodeUsername;
     const hasthm = !!tryhackmeUsername;
+    const hascf = !!codeforcesHandle;
 
     if (haslc) checks.push(validateLeetCodeUsername(extractLeetCodeUsername(leetcodeUsername)));
     if (hasthm) checks.push(validateTryHackMeUsername(tryhackmeUsername));
+    if (hascf) checks.push(validateCodeforcesHandle(codeforcesHandle.trim()));
 
     const results = await Promise.allSettled(checks);
+
+    let idx = 1;
+    let lcRes = null;
+    let thmRes = null;
+    let cfRes = null;
+    if (haslc) { lcRes = results[idx++]; }
+    if (hasthm) { thmRes = results[idx++]; }
+    if (hascf) { cfRes = results[idx++]; }
 
     res.status(200).json({
       success: true,
       validation: {
         github: { username: githubUsername, valid: results[0].status === "fulfilled" ? results[0].value : false },
-        ...(haslc && { leetcode: { username: leetcodeUsername, valid: results[1]?.value ?? false } }),
-        ...(hasthm && { tryhackme: { username: tryhackmeUsername, valid: results[haslc ? 2 : 1]?.value?.valid ?? false } }),
+        ...(haslc && { leetcode: { username: leetcodeUsername, valid: lcRes?.value ?? false } }),
+        ...(hasthm && { tryhackme: { username: tryhackmeUsername, valid: thmRes?.value?.valid ?? false } }),
+        ...(hascf && { codeforces: { handle: codeforcesHandle, valid: cfRes?.value ?? false } }),
       },
     });
   } catch (err) {

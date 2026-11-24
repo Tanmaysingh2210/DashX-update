@@ -21,26 +21,28 @@ const attachCookie = (res, token) => {
 
 // ─── formatUser — consistent user object shape ───────────────────────────────
 
-const formatUser = (user) => ({
+export const formatUser = (user) => ({
   id: user._id,
   githubUsername: user.githubUsername,
   leetcodeUsername: user.leetcodeUsername || null,
   tryhackmeUsername: user.tryhackmeUsername || null,
+  codeforcesHandle: user.codeforcesHandle || null,
   avatar: user.avatar,
   email: user.email,
   lastSynced: user.lastSynced,
   longestStreak: user.longestStreak || 0,
   joinedAt: user.createdAt,
-  // isSetupComplete is now just "has any secondary platform connected"
-  // but we no longer BLOCK the dashboard on it
-  isSetupComplete: !!(user.leetcodeUsername || user.tryhackmeUsername),
+  isSetupComplete: !!(user.leetcodeUsername || user.tryhackmeUsername || user.codeforcesHandle),
   hasLeetCode: !!user.leetcodeUsername,
   hasTryHackMe: !!user.tryhackmeUsername,
+  hasCodeforces: !!user.codeforcesHandle,
   isPublic: user.isPublic ?? true,
   includePrivate: user.includePrivate ?? false,
   weeklyReports: user.weeklyReports ?? false,
   notifications: user.notifications ?? true,
   syncStatus: user.syncStatus || "idle",
+  codeforcesSyncStatus: user.codeforcesSyncStatus || "idle",
+  codeforcesLastSyncedAt: user.codeforcesLastSyncedAt || null,
 });
 
 // ─── controllers ────────────────────────────────────────────────────────────
@@ -241,7 +243,7 @@ export const connectTryHackMe = async (req, res) => {
 export const disconnectPlatform = async (req, res) => {
   try {
     const { platform } = req.params;
-    const allowed = ["leetcode", "tryhackme"];
+    const allowed = ["leetcode", "tryhackme", "codeforces"];
 
     if (!allowed.includes(platform)) {
       return res.status(400).json({ success: false, message: "Unknown platform" });
@@ -254,6 +256,14 @@ export const disconnectPlatform = async (req, res) => {
     if (platform === "tryhackme") {
       updates.tryhackmeUsername = null;
       updates.tryhackmeUserId = null;
+    }
+    if (platform === "codeforces") {
+      updates.codeforcesHandle = null;
+      updates.codeforcesConnectedAt = null;
+      updates.codeforcesLastSyncedAt = null;
+      updates.codeforcesLastSubmissionId = null;
+      updates.codeforcesSyncStatus = "idle";
+      updates.codeforcesSyncError = null;
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });

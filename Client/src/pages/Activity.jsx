@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useActivity } from "../context/ActivityContext";
 import StatCard from "../components/StatCard";
@@ -16,6 +16,8 @@ import {
   LeetCodeIcon,
   ShieldIcon,
 } from "../components/Icons";
+import { CodeforcesIcon } from "../components/CodeforcesIcon";
+import api from "../api/axios";
 import "./Activity.css";
 
 const formatDate = (dateStr) => {
@@ -49,9 +51,12 @@ const utcDateStr = (daysAgo = 0) => {
 const Activity = () => {
   const { user } = useAuth();
   const { days, stats, loading, error, loadAll } = useActivity();
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [cfDetails, setCfDetails] = useState([]);
 
   const hasTHM = !!user?.tryhackmeUsername;
   const hasLC = !!user?.leetcodeUsername;
+  const hasCF = !!user?.codeforcesHandle;
 
   useEffect(() => {
     loadAll();
@@ -61,12 +66,23 @@ const Activity = () => {
     trackPageView();
   }, []);
 
+  useEffect(() => {
+    if (user?.codeforcesHandle) {
+      api.get("/api/codeforces/activity")
+        .then((res) => {
+          if (res.data?.success) setCfDetails(res.data.days || []);
+        })
+        .catch(() => {});
+    }
+  }, [user?.codeforcesHandle]);
+
+  const cfDetailMap = useMemo(() => new Map(cfDetails.map((d) => [d.date, d])), [cfDetails]);
+
   const data = useMemo(() => {
     if (!days.length) return null;
 
     // Build a Set for O(1) date lookup
     const activeDateSet = new Set(days.map((d) => d.date));
-    const dayMap = new Map(days.map((d) => [d.date, d]));
 
     const today = utcDateStr(0);
 
@@ -76,6 +92,7 @@ const Activity = () => {
     const weeklyActivity = last7Days.reduce((s, d) => s + d.totalCount, 0);
     const problemsThisWeek = last7Days.reduce((s, d) => s + d.leetcodeCount, 0);
     const tryhackmeThisWeek = last7Days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const codeforcesThisWeek = last7Days.reduce((s, d) => s + (d.codeforcesCount || 0), 0);
 
     // ── previous 7 days (for velocity comparison) ──
     const fourteenDaysAgo = utcDateStr(13);
@@ -91,7 +108,8 @@ const Activity = () => {
     const githubLast30 = last30Days.reduce((s, d) => s + d.githubCount, 0);
     const leetcodeLast30 = last30Days.reduce((s, d) => s + d.leetcodeCount, 0);
     const tryhackmeLast30 = last30Days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
-    const total30 = githubLast30 + leetcodeLast30 + tryhackmeLast30;
+    const codeforcesLast30 = last30Days.reduce((s, d) => s + (d.codeforcesCount || 0), 0);
+    const total30 = githubLast30 + leetcodeLast30 + tryhackmeLast30 + codeforcesLast30;
 
     // count active calendar days in last 30
     let activeDays30 = 0;
@@ -101,14 +119,22 @@ const Activity = () => {
 
     const githubPct = total30 ? Math.round((githubLast30 / total30) * 100) : 0;
     const leetcodePct = total30 ? Math.round((leetcodeLast30 / total30) * 100) : 0;
-    const tryhackmePct = total30 ? 100 - githubPct - leetcodePct : 0;
+    const tryhackmePct = total30 ? Math.round((tryhackmeLast30 / total30) * 100) : 0;
+    const codeforcesPct = total30 ? Math.max(0, 100 - githubPct - leetcodePct - tryhackmePct) : 0;
     const activeDaysPct = Math.round((activeDays30 / 30) * 100);
 
     // daily average = total ÷ 30 calendar days (consistent with Dashboard)
     const dailyAvg = (total30 / 30).toFixed(1);
 
-    // ── timeline: most recent active days newest first ──
-    const timeline = [...days].reverse().slice(0, 8);
+    // ── timeline: filtered by platform ──
+    const filteredDays = days.filter((d) => {
+      if (platformFilter === "github") return d.githubCount > 0;
+      if (platformFilter === "leetcode") return d.leetcodeCount > 0;
+      if (platformFilter === "tryhackme") return (d.tryhackmeCount || 0) > 0;
+      if (platformFilter === "codeforces") return (d.codeforcesCount || 0) > 0;
+      return true;
+    });
+    const timeline = [...filteredDays].reverse().slice(0, 8);
 
     // ── most active weekday — UTC-safe ──
     const weekdayTotals = new Array(7).fill(0);
@@ -125,9 +151,11 @@ const Activity = () => {
       activeDays30,
       problemsThisWeek,
       tryhackmeThisWeek,
+      codeforcesThisWeek,
       githubPct,
       leetcodePct,
       tryhackmePct,
+      codeforcesPct,
       activeDaysPct,
       dailyAvg,
       timeline,
@@ -136,11 +164,12 @@ const Activity = () => {
       githubLast30,
       leetcodeLast30,
       tryhackmeLast30,
+      codeforcesLast30,
     };
-  }, [days]);
+  }, [days, platformFilter]);
 
   // Dynamic stat card count for grid layout
-  const statCount = 3 + (hasLC ? 1 : 0) + (hasTHM ? 1 : 0);
+  const statCount = 3 + (hasLC ? 1 : 0) + (hasTHM ? 1 : 0) + (hasCF ? 1 : 0);
 
   return (
     <div className="page activity-page fade-in">
@@ -203,6 +232,61 @@ const Activity = () => {
                 delay={210}
               />
             )}
+            {hasCF && (
+              <StatCard
+                label="Codeforces submissions"
+                value={data?.codeforcesThisWeek ?? 0}
+                sub="submissions this week"
+                icon={<CodeforcesIcon />}
+                accent="primary"
+                subTone="primary"
+                delay={240}
+              />
+            )}
+          </div>
+
+          <div className="activity-filters fade-up">
+            <button
+              type="button"
+              className={`activity-filter-btn ${platformFilter === "all" ? "active" : ""}`}
+              onClick={() => setPlatformFilter("all")}
+            >
+              All platforms
+            </button>
+            <button
+              type="button"
+              className={`activity-filter-btn ${platformFilter === "github" ? "active" : ""}`}
+              onClick={() => setPlatformFilter("github")}
+            >
+              <GitHubIcon width={14} height={14} /> GitHub
+            </button>
+            {hasLC && (
+              <button
+                type="button"
+                className={`activity-filter-btn ${platformFilter === "leetcode" ? "active" : ""}`}
+                onClick={() => setPlatformFilter("leetcode")}
+              >
+                <LeetCodeIcon width={14} height={14} /> LeetCode
+              </button>
+            )}
+            {hasTHM && (
+              <button
+                type="button"
+                className={`activity-filter-btn ${platformFilter === "tryhackme" ? "active" : ""}`}
+                onClick={() => setPlatformFilter("tryhackme")}
+              >
+                <ShieldIcon width={14} height={14} /> TryHackMe
+              </button>
+            )}
+            {hasCF && (
+              <button
+                type="button"
+                className={`activity-filter-btn ${platformFilter === "codeforces" ? "active" : ""}`}
+                onClick={() => setPlatformFilter("codeforces")}
+              >
+                <CodeforcesIcon width={14} height={14} /> Codeforces
+              </button>
+            )}
           </div>
 
           <div className="activity-page__main">
@@ -211,7 +295,9 @@ const Activity = () => {
 
               {data?.timeline?.length ? (
                 <ul className="timeline">
-                  {data.timeline.map((day, i) => (
+                  {data.timeline.map((day, i) => {
+                    const cfDay = cfDetailMap.get(day.date);
+                    return (
                     <li key={day.date} className="timeline__item fade-up" style={{ animationDelay: `${280 + i * 50}ms` }}>
                       <div className="timeline__rail">
                         <span className="timeline__dot" />
@@ -253,13 +339,28 @@ const Activity = () => {
                               </span>
                             </div>
                           )}
+                          {(day.codeforcesCount || 0) > 0 && (
+                            <div className="timeline__entry">
+                              <span className="stat-card__icon stat-card__icon--primary timeline__icon">
+                                <CodeforcesIcon width={14} height={14} />
+                              </span>
+                              <span className="body-md">
+                                {day.codeforcesCount} Codeforces submission{day.codeforcesCount > 1 ? "s" : ""}
+                                {cfDay && (
+                                  <span style={{ opacity: 0.8, marginLeft: 6, fontSize: "0.85em" }}>
+                                    ({cfDay.accepted} accepted, {cfDay.uniqueSolved} solved)
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </li>
-                  ))}
+                  )})}
                 </ul>
               ) : (
-                <p className="body-md">No recent activity yet — sync your profiles to get started.</p>
+                <p className="body-md">No recent activity found for this filter.</p>
               )}
             </div>
 
@@ -301,6 +402,16 @@ const Activity = () => {
                 </InsightCard>
               )}
 
+              {hasCF && (
+                <InsightCard icon={<CodeforcesIcon />} accent="primary" title="Codeforces submissions" delay={390}>
+                  You logged{" "}
+                  <strong className="insight-card__highlight insight-card__highlight--primary">
+                    {data?.codeforcesLast30 ?? 0} Codeforces submissions
+                  </strong>{" "}
+                  over the last 30 days.
+                </InsightCard>
+              )}
+
               <InsightCard icon={<GitHubIcon />} accent="secondary" title="Shipping pace" delay={420}>
                 <strong className="insight-card__highlight insight-card__highlight--secondary">
                   {data?.githubLast30 ?? 0} GitHub contributions
@@ -322,13 +433,16 @@ const Activity = () => {
           <div className="card activity-page__breakdown fade-up" style={{ animationDelay: "480ms" }}>
             <h2 className="title-lg activity-page__section-title">Activity breakdown (last 30 days)</h2>
 
-            <div className={`breakdown ${hasTHM ? 'breakdown--with-thm' : ''}`}>
+            <div className={`breakdown ${hasTHM || hasCF ? 'breakdown--with-thm' : ''}`}>
               <BreakdownBar label="GitHub activity" pct={data?.githubPct ?? 0} color="secondary" delay={520} />
               {hasLC && (
                 <BreakdownBar label="LeetCode activity" pct={data?.leetcodePct ?? 0} color="tertiary" delay={580} />
               )}
               {hasTHM && (
                 <BreakdownBar label="TryHackMe activity" pct={data?.tryhackmePct ?? 0} color="danger" delay={610} />
+              )}
+              {hasCF && (
+                <BreakdownBar label="Codeforces activity" pct={data?.codeforcesPct ?? 0} color="primary" delay={630} />
               )}
               <BreakdownBar
                 label="Active days"

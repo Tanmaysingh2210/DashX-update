@@ -1,0 +1,91 @@
+.cf-graph {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cf-graph--empty {
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-10) 0;
+  color: var(--color-outline);
+}
+
+.cf-graph__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.cf-graph__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-on-surface);
+}
+
+.cf-graph__handle-link {
+  color: var(--color-primary);
+  font-size: var(--fs-label-md);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.cf-graph__handle-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.cf-graph__legend {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.cf-graph__svg-wrap {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
+.cf-graph__tooltip {
+  position: absolute;
+  background: var(--color-surface-high);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 10;
+  min-width: 160px;
+  box-shadow: var(--shadow-float);
+}
+
+.cf-graph__tooltip-contest {
+  font-size: var(--fs-body-md);
+  font-weight: 500;
+  color: var(--color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.cf-graph__tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.cf-graph__tooltip-change {
+  font-size: var(--fs-body-md);
+  font-weight: 500;
+}

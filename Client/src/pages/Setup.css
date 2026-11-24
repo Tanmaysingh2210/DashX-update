@@ -60,3 +60,36 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
 }
+
+.setup-card__cf-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  background: var(--color-surface-high);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.setup-card__cf-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.setup-card__cf-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+}
+
+.setup-card__cf-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-card__cf-rating {
+  font-size: var(--fs-label-md);
+  color: var(--color-on-surface-variant);
+}

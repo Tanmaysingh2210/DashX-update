@@ -17,24 +17,23 @@ const ConnectPlatformsBanner = () => {
 
   const hasLeetCode   = !!user?.leetcodeUsername;
   const hasTryHackMe  = !!user?.tryhackmeUsername;
+  const hasCodeforces = !!user?.codeforcesHandle;
 
-  // if both connected, don't show anything
-  if (hasLeetCode && hasTryHackMe) return null;
+  // if all secondary connected, don't show anything
+  if (hasLeetCode && hasTryHackMe && hasCodeforces) return null;
 
   return (
     <div className="connect-banner card fade-up">
       <div className="connect-banner__left">
         <p className="title-lg connect-banner__title">
-          {!hasLeetCode && !hasTryHackMe
+          {!hasLeetCode && !hasTryHackMe && !hasCodeforces
             ? "Connect your coding platforms"
             : "Add more platforms"}
         </p>
         <p className="body-md">
-          {!hasLeetCode && !hasTryHackMe
-            ? "Your GitHub heatmap is live. Connect LeetCode or TryHackMe to unify all your coding activity into one streak."
-            : !hasLeetCode
-            ? "Connect LeetCode to track your problem-solving alongside GitHub and TryHackMe."
-            : "Connect TryHackMe to track cybersecurity learning alongside your GitHub and LeetCode activity."}
+          {!hasLeetCode && !hasTryHackMe && !hasCodeforces
+            ? "Your GitHub heatmap is live. Connect LeetCode, TryHackMe, or Codeforces to unify all your coding activity into one streak."
+            : "Connect more platforms to track your problem-solving, competitive programming, and learning alongside GitHub."}
         </p>
 
         <div className="connect-banner__platforms">
@@ -52,6 +51,14 @@ const ConnectPlatformsBanner = () => {
               label="TryHackMe"
               icon="⬡"
               description="Cybersecurity"
+            />
+          )}
+          {!hasCodeforces && (
+            <PlatformChip
+              color="primary"
+              label="Codeforces"
+              icon="📊"
+              description="Contests & rating"
             />
           )}
         </div>

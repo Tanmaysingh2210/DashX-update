@@ -18,13 +18,15 @@ const getCellType = (day) => {
   const g = day.githubCount    > 0;
   const l = day.leetcodeCount  > 0;
   const t = (day.tryhackmeCount || 0) > 0;
+  const c = (day.codeforcesCount || 0) > 0;
 
-  const active = (g ? 1 : 0) + (l ? 1 : 0) + (t ? 1 : 0);
+  const active = (g ? 1 : 0) + (l ? 1 : 0) + (t ? 1 : 0) + (c ? 1 : 0);
   if (active === 0) return "empty";
   if (active >= 2)  return "combined";
   if (g) return "github";
   if (l) return "leetcode";
-  return "tryhackme";
+  if (t) return "tryhackme";
+  return "codeforces";
 };
 
 const getLevel = (count, max) => {
@@ -37,10 +39,18 @@ const getLevel = (count, max) => {
   return 1;
 };
 
+const formatDate = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 const buildWeeks = (days) => {
   const map = new Map(days.map((d) => [d.date, d]));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const todayStr = formatDate(today);
 
   const start = new Date(today);
   start.setDate(start.getDate() - 52 * 7);
@@ -52,16 +62,17 @@ const buildWeeks = (days) => {
   while (current <= today) {
     const week = [];
     for (let i = 0; i < 7; i++) {
-      const dateStr = current.toISOString().split("T")[0];
+      const dateStr = formatDate(current);
       const entry   = map.get(dateStr);
       week.push({
-        date:           dateStr,
-        githubCount:    entry?.githubCount    || 0,
-        leetcodeCount:  entry?.leetcodeCount  || 0,
-        tryhackmeCount: entry?.tryhackmeCount || 0,
-        totalCount:     entry?.totalCount     || 0,
-        month:          current.getMonth(),
-        isFuture:       current > today,
+        date:            dateStr,
+        githubCount:     entry?.githubCount     || 0,
+        leetcodeCount:   entry?.leetcodeCount   || 0,
+        tryhackmeCount:  entry?.tryhackmeCount  || 0,
+        codeforcesCount: entry?.codeforcesCount || 0,
+        totalCount:      entry?.totalCount      || 0,
+        month:           current.getMonth(),
+        isFuture:        dateStr > todayStr,
       });
       current.setDate(current.getDate() + 1);
     }
@@ -86,13 +97,18 @@ const Heatmap = ({ days = [], connectedPlatforms }) => {
     ? connectedPlatforms.tryhackme
     : days.some((d) => (d.tryhackmeCount || 0) > 0);
 
-  const connectedCount = (hasGithub ? 1 : 0) + (hasLeetcode ? 1 : 0) + (hasTryhackme ? 1 : 0);
+  const hasCodeforces = connectedPlatforms?.codeforces !== undefined
+    ? connectedPlatforms.codeforces
+    : days.some((d) => (d.codeforcesCount || 0) > 0);
+
+  const connectedCount = (hasGithub ? 1 : 0) + (hasLeetcode ? 1 : 0) + (hasTryhackme ? 1 : 0) + (hasCodeforces ? 1 : 0);
   const hasCombined = connectedCount >= 2;
 
-  const maxGithub    = useMemo(() => days.reduce((m, d) => Math.max(m, d.githubCount),             1), [days]);
-  const maxLeetcode  = useMemo(() => days.reduce((m, d) => Math.max(m, d.leetcodeCount),           1), [days]);
-  const maxTryhackme = useMemo(() => days.reduce((m, d) => Math.max(m, d.tryhackmeCount || 0),     1), [days]);
-  const maxTotal     = useMemo(() => days.reduce((m, d) => Math.max(m, d.totalCount),              1), [days]);
+  const maxGithub      = useMemo(() => days.reduce((m, d) => Math.max(m, d.githubCount),               1), [days]);
+  const maxLeetcode    = useMemo(() => days.reduce((m, d) => Math.max(m, d.leetcodeCount),             1), [days]);
+  const maxTryhackme   = useMemo(() => days.reduce((m, d) => Math.max(m, d.tryhackmeCount || 0),       1), [days]);
+  const maxCodeforces  = useMemo(() => days.reduce((m, d) => Math.max(m, d.codeforcesCount || 0),      1), [days]);
+  const maxTotal       = useMemo(() => days.reduce((m, d) => Math.max(m, d.totalCount),                1), [days]);
 
   const monthMarkers = useMemo(() => {
     const markers = [];
@@ -112,10 +128,11 @@ const Heatmap = ({ days = [], connectedPlatforms }) => {
 
     let level;
     switch (type) {
-      case "github":   level = getLevel(day.githubCount,            maxGithub);    break;
-      case "leetcode": level = getLevel(day.leetcodeCount,          maxLeetcode);  break;
-      case "tryhackme":level = getLevel(day.tryhackmeCount || 0,   maxTryhackme); break;
-      default:         level = getLevel(day.totalCount,             maxTotal);     break;
+      case "github":     level = getLevel(day.githubCount,            maxGithub);      break;
+      case "leetcode":   level = getLevel(day.leetcodeCount,          maxLeetcode);    break;
+      case "tryhackme":  level = getLevel(day.tryhackmeCount || 0,   maxTryhackme);   break;
+      case "codeforces": level = getLevel(day.codeforcesCount || 0,  maxCodeforces);  break;
+      default:           level = getLevel(day.totalCount,             maxTotal);       break;
     }
 
     return `heatmap__cell heatmap__cell--${type}-${level}`;
@@ -127,6 +144,7 @@ const Heatmap = ({ days = [], connectedPlatforms }) => {
         <div className="heatmap__months">
           {weeks.map((_, i) => {
             const marker = monthMarkers.find((m) => m.weekIndex === i);
+            if (i === 0) return null;
             return <div key={i} className="heatmap__month-cell">{marker?.label || ""}</div>;
           })}
         </div>
@@ -176,12 +194,17 @@ const Heatmap = ({ days = [], connectedPlatforms }) => {
               )}
               {hovered.leetcodeCount > 0 && (
                 <span className="heatmap__tooltip-detail">
-                  <span className="dot dot--leetcode" /> {hovered.leetcodeCount} solved
+                  <span className="dot dot--leetcode" /> {hovered.leetcodeCount} Leetcode submission{hovered.leetcodeCount > 1 ? "s" : ""}
                 </span>
               )}
               {(hovered.tryhackmeCount || 0) > 0 && (
                 <span className="heatmap__tooltip-detail">
                   <span className="dot dot--tryhackme" /> {hovered.tryhackmeCount} event{hovered.tryhackmeCount > 1 ? "s" : ""}
+                </span>
+              )}
+              {(hovered.codeforcesCount || 0) > 0 && (
+                <span className="heatmap__tooltip-detail">
+                  <span className="dot dot--codeforces" /> {hovered.codeforcesCount} Codeforces submission{hovered.codeforcesCount > 1 ? "s" : ""}
                 </span>
               )}
             </>
@@ -212,6 +235,14 @@ const Heatmap = ({ days = [], connectedPlatforms }) => {
               <span className="dot dot--tryhackme" /> TryHackMe
               <span className="heatmap__legend-swatches">
                 {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--tryhackme-${l}`} />)}
+              </span>
+            </span>
+          )}
+          {hasCodeforces && (
+            <span className="heatmap__legend-group">
+              <span className="dot dot--codeforces" /> Codeforces
+              <span className="heatmap__legend-swatches">
+                {[1,2,3,4].map((l) => <span key={l} className={`heatmap__legend-swatch heatmap__cell--codeforces-${l}`} />)}
               </span>
             </span>
           )}

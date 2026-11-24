@@ -11,7 +11,7 @@ export const getPublicProfile = async (req, res) => {
 
     const user = await User.findOne({
       githubUsername: { $regex: new RegExp(`^${username}$`, "i") },
-    }).select("githubUsername leetcodeUsername tryhackmeUsername avatar isPublic longestStreak createdAt platformStats");
+    }).select("githubUsername leetcodeUsername tryhackmeUsername codeforcesHandle avatar isPublic longestStreak createdAt platformStats");
 
     if (!user)                   return res.status(404).json({ success: false, message: "Profile not found" });
     if (user.isPublic === false)  return res.status(404).json({ success: false, message: "This profile is private" });
@@ -25,14 +25,15 @@ export const getPublicProfile = async (req, res) => {
       totalCount: { $gt: 0 },
     })
       .sort({ date: 1 })
-      .select("-_id date githubCount leetcodeCount tryhackmeCount totalCount")
+      .select("-_id date githubCount leetcodeCount tryhackmeCount codeforcesCount totalCount")
       .lean();
 
     const { currentStreak, longestStreak } = calculateStreaks(days);
 
-    const githubTotal    = days.reduce((s, d) => s + d.githubCount,    0);
-    const leetcodeTotal  = days.reduce((s, d) => s + d.leetcodeCount,  0);
-    const tryhackmeTotal = days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const githubTotal     = days.reduce((s, d) => s + d.githubCount,    0);
+    const leetcodeTotal   = days.reduce((s, d) => s + d.leetcodeCount,  0);
+    const tryhackmeTotal  = days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const codeforcesTotal = days.reduce((s, d) => s + (d.codeforcesCount || 0), 0);
 
     const activeDateSet = new Set(days.map((d) => d.date));
     let activeIn30 = 0;
@@ -45,12 +46,13 @@ export const getPublicProfile = async (req, res) => {
     const consistency = Math.round((activeIn30 / 30) * 100);
 
     const sevenDaysAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6))
-      .toISOString().split("T")[0];
+        .toISOString().split("T")[0];
     const last7 = days.filter((d) => d.date >= sevenDaysAgo);
 
-    const lastGithub    = [...days].reverse().find((d) => d.githubCount > 0);
-    const lastLeetcode  = [...days].reverse().find((d) => d.leetcodeCount > 0);
-    const lastTryhackme = [...days].reverse().find((d) => (d.tryhackmeCount || 0) > 0);
+    const lastGithub     = [...days].reverse().find((d) => d.githubCount > 0);
+    const lastLeetcode   = [...days].reverse().find((d) => d.leetcodeCount > 0);
+    const lastTryhackme  = [...days].reverse().find((d) => (d.tryhackmeCount || 0) > 0);
+    const lastCodeforces = [...days].reverse().find((d) => (d.codeforcesCount || 0) > 0);
 
     res.status(200).json({
       success: true,
@@ -58,30 +60,35 @@ export const getPublicProfile = async (req, res) => {
         githubUsername:    user.githubUsername,
         leetcodeUsername:  user.leetcodeUsername  || null,
         tryhackmeUsername: user.tryhackmeUsername || null,
+        codeforcesHandle:  user.codeforcesHandle  || null,
         avatar:            user.avatar,
         memberSince:       user.createdAt,
         connectedPlatforms: {
-          github:    true,
-          leetcode:  !!user.leetcodeUsername,
-          tryhackme: !!user.tryhackmeUsername,
+          github:     true,
+          leetcode:   !!user.leetcodeUsername,
+          tryhackme:  !!user.tryhackmeUsername,
+          codeforces: !!user.codeforcesHandle,
         },
         platformStats: user.platformStats || {},
       },
       stats: {
         currentStreak,
-        longestStreak:   Math.max(longestStreak, user.longestStreak || 0),
+        longestStreak:    Math.max(longestStreak, user.longestStreak || 0),
         githubTotal,
         leetcodeTotal,
         tryhackmeTotal,
-        githubWeekly:    last7.reduce((s, d) => s + d.githubCount,    0),
-        leetcodeWeekly:  last7.reduce((s, d) => s + d.leetcodeCount,  0),
-        tryhackmeWeekly: last7.reduce((s, d) => s + (d.tryhackmeCount || 0), 0),
-        lastGithub:      lastGithub?.date || null,
-        lastLeetcode:    lastLeetcode?.date || null,
-        lastTryhackme:   lastTryhackme?.date || null,
+        codeforcesTotal,
+        githubWeekly:     last7.reduce((s, d) => s + d.githubCount,    0),
+        leetcodeWeekly:   last7.reduce((s, d) => s + d.leetcodeCount,  0),
+        tryhackmeWeekly:  last7.reduce((s, d) => s + (d.tryhackmeCount || 0), 0),
+        codeforcesWeekly: last7.reduce((s, d) => s + (d.codeforcesCount || 0), 0),
+        lastGithub:       lastGithub?.date || null,
+        lastLeetcode:     lastLeetcode?.date || null,
+        lastTryhackme:    lastTryhackme?.date || null,
+        lastCodeforces:   lastCodeforces?.date || null,
         consistency,
         activeIn30,
-        totalActiveDays: days.length,
+        totalActiveDays:  days.length,
       },
       days,
     });
@@ -100,7 +107,7 @@ export const getProfileOgPage = async (req, res) => {
 
     const user = await User.findOne({
       githubUsername: { $regex: new RegExp(`^${username}$`, "i") },
-    }).select("githubUsername leetcodeUsername tryhackmeUsername avatar isPublic longestStreak createdAt");
+    }).select("githubUsername leetcodeUsername tryhackmeUsername codeforcesHandle avatar isPublic longestStreak createdAt");
 
     if (!user || user.isPublic === false) {
       return res.send(buildOgHtml({
@@ -116,13 +123,14 @@ export const getProfileOgPage = async (req, res) => {
       userId:     user._id,
       date:       { $gte: oneYearAgo },
       totalCount: { $gt: 0 },
-    }).select("-_id date totalCount githubCount leetcodeCount tryhackmeCount").lean();
+    }).select("-_id date totalCount githubCount leetcodeCount tryhackmeCount codeforcesCount").lean();
 
     const { currentStreak, longestStreak } = calculateStreaks(days);
     const bestStreak     = Math.max(longestStreak, user.longestStreak || 0);
     const githubTotal    = days.reduce((s, d) => s + d.githubCount,   0);
     const leetcodeTotal  = days.reduce((s, d) => s + d.leetcodeCount, 0);
     const tryhackmeTotal = days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
+    const codeforcesTotal = days.reduce((s, d) => s + (d.codeforcesCount || 0), 0);
 
     const activeDates = new Set(days.map((d) => d.date));
     let activeIn30 = 0;
@@ -136,8 +144,9 @@ export const getProfileOgPage = async (req, res) => {
 
     const platformStats = [
       `GitHub: ${githubTotal} contributions`,
-      leetcodeTotal  > 0 ? `LeetCode: ${leetcodeTotal} submissions`    : null,
-      tryhackmeTotal > 0 ? `TryHackMe: ${tryhackmeTotal} rooms`        : null,
+      leetcodeTotal   > 0 ? `LeetCode: ${leetcodeTotal} submissions`     : null,
+      tryhackmeTotal  > 0 ? `TryHackMe: ${tryhackmeTotal} rooms`         : null,
+      codeforcesTotal > 0 ? `Codeforces: ${codeforcesTotal} submissions` : null,
     ].filter(Boolean).join(" · ");
 
     const description = `🔥 ${currentStreak}-day streak · Best: ${bestStreak} days · ${platformStats} · ${consistency}% consistency`;
@@ -151,8 +160,9 @@ export const getProfileOgPage = async (req, res) => {
       url:         profileUrl,
       username:    user.githubUsername,
       leetcode:    user.leetcodeUsername,
+      codeforces:  user.codeforcesHandle,
       memberSince: user.createdAt,
-      stats:       { currentStreak, longestStreak: bestStreak, consistency, githubTotal, leetcodeTotal },
+      stats:       { currentStreak, longestStreak: bestStreak, consistency, githubTotal, leetcodeTotal, codeforcesTotal },
     }));
   } catch (err) {
     console.error("[getProfileOgPage] error:", err.message);

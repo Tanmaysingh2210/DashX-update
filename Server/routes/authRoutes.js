@@ -11,6 +11,7 @@ import {
   logout,
   updatePreferences,
 } from "../controllers/authController.js";
+import { connectCodeforces } from "../controllers/codeforcesController.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = express.Router();
@@ -35,10 +36,12 @@ router.get("/sync-status", verifyToken, getSyncStatus);
 // ── Platform connections (optional — user connects whichever they want) ──
 router.patch("/connect/leetcode",   verifyToken, connectLeetCode);
 router.patch("/connect/tryhackme",  verifyToken, connectTryHackMe);
+router.patch("/connect/codeforces", verifyToken, connectCodeforces);
 router.delete("/disconnect/:platform", verifyToken, disconnectPlatform);
 
-// ── Backwards compat — old /setup-leetcode endpoint still works ──
+// ── Backwards compat & aliases ──
 router.patch("/setup-leetcode", verifyToken, setupLeetcode);
+router.patch("/setup-codeforces", verifyToken, connectCodeforces);
 
 // ── Preferences ──
 router.patch("/preferences", verifyToken, updatePreferences);

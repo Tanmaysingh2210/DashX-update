@@ -17,7 +17,7 @@ const ActivityContext = createContext(null);
 export const ActivityProvider = ({ children }) => {
   const [days, setDays] = useState([]);          // [{ date, githubCount, leetcodeCount, totalCount }]
   const [stats, setStats] = useState(null);       // { currentStreak, longestStreak, totalActiveDays, ... }
-  const [platformStats, setPlatformStats] = useState(null); // { github, leetcode, tryhackme } — live profile stats
+  const [platformStats, setPlatformStats] = useState(null); // { github, leetcode, tryhackme, codeforces } — live profile stats
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);

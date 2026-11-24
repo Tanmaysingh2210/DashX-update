@@ -78,6 +78,10 @@
   color: #f87171;
 }
 
+.public-profile__handle--cf {
+  color: #38bdf8;
+}
+
 .public-profile__handle:hover {
   opacity: 0.8;
 }
@@ -125,6 +129,11 @@
   color: #e05252;
 }
 
+.public-profile__platform-badge--cf {
+  background-color: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
 .public-profile__since {
   text-transform: none;
   letter-spacing: 0;
@@ -151,7 +160,7 @@
 
 .public-profile__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--space-6);
 }
 
@@ -241,6 +250,11 @@
   grid-template-columns: repeat(3, 1fr);
 }
 
+/* 4-column layout when all four platforms are connected */
+.public-profile__panels--four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .activity-panel {
   display: flex;
   flex-direction: column;
@@ -257,6 +271,10 @@
 
 .activity-panel--danger {
   border-color: rgba(224, 82, 82, 0.2);
+}
+
+.activity-panel--info {
+  border-color: rgba(56, 189, 248, 0.2);
 }
 
 .activity-panel__header {
@@ -355,6 +373,10 @@
   color: #f87171;
 }
 
+.public-profile__link--cf {
+  color: #38bdf8;
+}
+
 .public-profile__link:hover {
   opacity: 0.8;
 }
@@ -372,6 +394,12 @@
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════ */
 
+@media (max-width: 1200px) {
+  .public-profile__panels--four {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   .public-profile__stats {
     grid-template-columns: repeat(2, 1fr);
@@ -385,7 +413,8 @@
     grid-template-columns: 1fr;
   }
 
-  .public-profile__panels--three {
+  .public-profile__panels--three,
+  .public-profile__panels--four {
     grid-template-columns: 1fr;
   }
 }

@@ -23,9 +23,13 @@ const activitySchema = new Schema(
       type: Number,
       default: 0,
     },
+    codeforcesCount: {
+      type: Number,
+      default: 0,
+    },
     totalCount: {
       type: Number,
-      default: 0,       // precomputed = githubCount + leetcodeCount + tryhackme
+      default: 0,       // precomputed = githubCount + leetcodeCount + tryhackmeCount + codeforcesCount
     },
   },
   {

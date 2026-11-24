@@ -8,6 +8,7 @@ import {
   RefreshIcon,
   ZapIcon,
 } from "../components/Icons";
+import { CodeforcesIcon } from "../components/CodeforcesIcon";
 import "./Settings.css";
 
 // ── TryHackMe icon (inline — not in Icons.jsx yet) ──
@@ -43,6 +44,11 @@ const Settings = () => {
   const [thmInput, setThmInput]             = useState(user?.tryhackmeUsername || "");
   const [thmSaving, setThmSaving]           = useState(false);
   const [thmMessage, setThmMessage]         = useState(null);
+
+  // ── Codeforces connect form ──
+  const [cfInput, setCfInput]               = useState(user?.codeforcesHandle || "");
+  const [cfSaving, setCfSaving]             = useState(false);
+  const [cfMessage, setCfMessage]           = useState(null);
 
   const [syncMessage, setSyncMessage]       = useState(null);
 
@@ -100,6 +106,7 @@ const Settings = () => {
       await refreshUser();
       if (platform === "leetcode") setLeetcodeInput("");
       if (platform === "tryhackme") setThmInput("");
+      if (platform === "codeforces") setCfInput("");
     } catch (err) {
       console.error("Disconnect failed:", err.message);
     }
@@ -123,6 +130,37 @@ const Settings = () => {
     }
   };
 
+  // ── connect Codeforces ──
+  const handleConnectCodeforces = async (e) => {
+    e.preventDefault();
+    const cleaned = cfInput.trim();
+    if (!cleaned) return;
+    setCfSaving(true);
+    setCfMessage(null);
+    try {
+      await api.patch("/auth/connect/codeforces", { codeforcesHandle: cleaned });
+      await refreshUser();
+      setCfMessage({ type: "success", text: "Codeforces connected. Syncing in background…" });
+    } catch (err) {
+      setCfMessage({ type: "error", text: err.response?.data?.message || "Failed to connect Codeforces" });
+    } finally {
+      setCfSaving(false);
+    }
+  };
+
+  // ── disconnect Codeforces ──
+  const handleDisconnectCodeforces = async () => {
+    if (!confirm("Disconnect Codeforces? Your submission data will be kept.")) return;
+    try {
+      await api.delete("/api/codeforces/disconnect");
+      await refreshUser();
+      setCfInput("");
+      setCfMessage(null);
+    } catch (err) {
+      console.error("Disconnect CF failed:", err.message);
+    }
+  };
+
   // ── manual sync ──
   const handleSync = async () => {
     setSyncMessage(null);
@@ -137,6 +175,7 @@ const Settings = () => {
     true,                        // GitHub always
     !!user?.leetcodeUsername,
     !!user?.tryhackmeUsername,
+    !!user?.codeforcesHandle,
   ].filter(Boolean).length;
 
   return (
@@ -226,6 +265,41 @@ const Settings = () => {
               )}
               <button className="btn btn--full settings-page__thm-btn" type="submit" disabled={thmSaving}>
                 {thmSaving ? "Connecting…" : user?.tryhackmeUsername ? "Update username" : "Connect TryHackMe"}
+              </button>
+            </form>
+          }
+        />
+
+        {/* Codeforces — optional */}
+        <PlatformCard
+          icon={<CodeforcesIcon />}
+          accent="primary"
+          name="Codeforces"
+          username={user?.codeforcesHandle}
+          label="CODEFORCES"
+          connected={!!user?.codeforcesHandle}
+          lastSynced={user?.codeforcesHandle ? user?.codeforcesLastSyncedAt : null}
+          onReconnect={handleDisconnectCodeforces}
+          reconnectLabel="Disconnect"
+          form={
+            <form className="platform-card__form" onSubmit={handleConnectCodeforces}>
+              <div className="field">
+                <label htmlFor="cf-handle">Codeforces handle</label>
+                <input
+                  id="cf-handle"
+                  type="text"
+                  placeholder="e.g. tourist"
+                  value={cfInput}
+                  onChange={(e) => setCfInput(e.target.value)}
+                />
+              </div>
+              {cfMessage && (
+                <p className={`platform-card__msg platform-card__msg--${cfMessage.type}`}>
+                  {cfMessage.text}
+                </p>
+              )}
+              <button className="btn btn--primary btn--full" type="submit" disabled={cfSaving}>
+                {cfSaving ? "Validating…" : user?.codeforcesHandle ? "Update handle" : "Connect Codeforces"}
               </button>
             </form>
           }
@@ -322,24 +396,25 @@ const Settings = () => {
 
           <div className="status-card__row">
             <span className="body-md">Connected profiles</span>
-            <span className="title-lg">{connectedCount} / 3 active</span>
+            <span className="title-lg">{connectedCount} / 4 active</span>
           </div>
 
           <div className="breakdown__track">
             <div
               className="breakdown__fill breakdown__fill--primary"
-              style={{ width: `${(connectedCount / 3) * 100}%` }}
+              style={{ width: `${(connectedCount / 4) * 100}%` }}
             />
           </div>
 
           <div className="status-card__platforms">
-            <PlatformStatus label="GitHub"     active={true}                      dot="github"    />
-            <PlatformStatus label="LeetCode"   active={!!user?.leetcodeUsername}  dot="leetcode"  />
-            <PlatformStatus label="TryHackMe"  active={!!user?.tryhackmeUsername} dot="tryhackme" />
+            <PlatformStatus label="GitHub"     active={true}                       dot="github"    />
+            <PlatformStatus label="LeetCode"   active={!!user?.leetcodeUsername}   dot="leetcode"  />
+            <PlatformStatus label="TryHackMe"  active={!!user?.tryhackmeUsername}  dot="tryhackme" />
+            <PlatformStatus label="Codeforces" active={!!user?.codeforcesHandle}   dot="codeforces" />
           </div>
 
           <p className="body-md status-card__note">
-            {connectedCount === 3
+            {connectedCount === 4
               ? "All platforms connected. Auto-syncs every 24 hours."
               : "Connect more platforms to get a fuller picture of your coding activity."}
           </p>

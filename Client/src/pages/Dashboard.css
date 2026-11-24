@@ -119,6 +119,17 @@
   grid-template-columns: repeat(3, 1fr);
 }
 
+/* 4-column layout when all four platforms are connected */
+.dashboard__panels--four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1200px) {
+  .dashboard__panels--four {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* ── difficulty badges (LeetCode Easy / Medium / Hard) ── */
 
 .difficulty-badges {

@@ -68,6 +68,34 @@ const userSchema = new Schema(
       default: true,
     },
 
+    // ── Codeforces integration ──
+    codeforcesHandle: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    codeforcesConnectedAt: {
+      type: Date,
+      default: null,
+    },
+    codeforcesLastSyncedAt: {
+      type: Date,
+      default: null,
+    },
+    codeforcesLastSubmissionId: {
+      type: Number,
+      default: null,
+    },
+    codeforcesSyncStatus: {
+      type: String,
+      enum: ["idle", "syncing", "done", "failed"],
+      default: "idle",
+    },
+    codeforcesSyncError: {
+      type: String,
+      default: null,
+    },
+
     // ── cached platform stats ──
     // Updated during sync so the dashboard never needs to hit external APIs
     platformStats: {
@@ -85,6 +113,15 @@ const userSchema = new Schema(
         level: { type: Number, default: 0 },
         totalPoints: { type: Number, default: 0 },
         rank: { type: Schema.Types.Mixed, default: null },
+      },
+      codeforces: {
+        rating: { type: Number, default: null },
+        maxRating: { type: Number, default: null },
+        rank: { type: String, default: null },
+        maxRank: { type: String, default: null },
+        totalSubmissions: { type: Number, default: 0 },
+        acceptedSubmissions: { type: Number, default: 0 },
+        uniqueSolved: { type: Number, default: 0 },
       },
     },
   },

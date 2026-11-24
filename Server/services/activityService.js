@@ -17,11 +17,11 @@ import Activity from "../models/Activity.js";
  * Output shape: [{ date, githubCount, leetcodeCount, totalCount }]
  * Only returns days where totalCount > 0 — zero days are never stored.
  */
-export const mergeDays = (githubDays = [], leetcodeDays= [], tryhackmeDays = []) => {
+export const mergeDays = (githubDays = [], leetcodeDays= [], tryhackmeDays = [], codeforcesDays = []) => {
   const map = new Map();
 
   for (const { date, count } of githubDays) {
-    if (count > 0) map.set(date, { githubCount: count, leetcodeCount: 0, tryhackmeCount: 0 });
+    if (count > 0) map.set(date, { githubCount: count, leetcodeCount: 0, tryhackmeCount: 0, codeforcesCount: 0 });
   }
 
   for (const { date, count } of leetcodeDays) {
@@ -29,7 +29,7 @@ export const mergeDays = (githubDays = [], leetcodeDays= [], tryhackmeDays = [])
       if (map.has(date)) {
         map.get(date).leetcodeCount = count;
       } else {
-        map.set(date, { githubCount: 0, leetcodeCount: count, tryhackmeCount: 0 });
+        map.set(date, { githubCount: 0, leetcodeCount: count, tryhackmeCount: 0, codeforcesCount: 0 });
       }
     }
   }
@@ -39,18 +39,29 @@ export const mergeDays = (githubDays = [], leetcodeDays= [], tryhackmeDays = [])
       if (map.has(date)) {
         map.get(date).tryhackmeCount = count;
       } else {
-        map.set(date, { githubCount: 0, leetcodeCount: 0, tryhackmeCount: count });
+        map.set(date, { githubCount: 0, leetcodeCount: 0, tryhackmeCount: count, codeforcesCount: 0 });
+      }
+    }
+  }
+
+  for (const { date, count } of codeforcesDays) {
+    if (count > 0) {
+      if (map.has(date)) {
+        map.get(date).codeforcesCount = count;
+      } else {
+        map.set(date, { githubCount: 0, leetcodeCount: 0, tryhackmeCount: 0, codeforcesCount: count });
       }
     }
   }
 
   return Array.from(map.entries())
-    .map(([date, { githubCount, leetcodeCount, tryhackmeCount }]) => ({
+    .map(([date, { githubCount, leetcodeCount, tryhackmeCount, codeforcesCount }]) => ({
       date,
       githubCount,
       leetcodeCount,
       tryhackmeCount,
-      totalCount: githubCount + leetcodeCount + tryhackmeCount,
+      codeforcesCount,
+      totalCount: githubCount + leetcodeCount + tryhackmeCount + codeforcesCount,
     }))
     .sort((a, b) => (a.date > b.date ? 1 : -1));
 };
@@ -203,10 +214,10 @@ const fetchFromAllPlatforms = async (
 const saveToDb = async (userId, mergedDays) => {
   if (!mergedDays.length) return;
 
-  const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, tryhackmeCount, totalCount }) => ({
+  const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, tryhackmeCount, codeforcesCount, totalCount }) => ({
     updateOne: {
       filter: { userId, date },
-      update: { $set: { githubCount, leetcodeCount, tryhackmeCount, totalCount } },
+      update: { $set: { githubCount, leetcodeCount, tryhackmeCount, codeforcesCount, totalCount } },
       upsert: true,
     },
   }));

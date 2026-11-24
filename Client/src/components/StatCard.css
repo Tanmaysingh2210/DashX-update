@@ -45,6 +45,11 @@
   color: var(--color-tertiary);
 }
 
+.stat-card__icon--info {
+  background-color: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
 .stat-card__value {
   display: flex;
   align-items: baseline;
@@ -77,4 +82,8 @@
 
 .stat-card__sub--primary {
   color: var(--color-primary);
+}
+
+.stat-card__sub--info {
+  color: #38bdf8;
 }

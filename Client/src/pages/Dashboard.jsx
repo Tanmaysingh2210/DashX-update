@@ -18,6 +18,9 @@ import {
 import "./Dashboard.css";
 import { ShareIcon } from "../assets/Icons";
 import ConnectPlatformsBanner from "../components/ConnectPlatformsBanner";
+import { CodeforcesIcon } from "../components/CodeforcesIcon";
+import CodeforcesRatingGraph from "../components/CodeforcesRatingGraph";
+import api from "../api/axios";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -65,6 +68,7 @@ const Dashboard = () => {
   const [copied, setCopied] = useState(false);
   const { user, refreshUser } = useAuth();
   const { days, stats, platformStats, loading, syncing, error, clearError, loadAll, sync } = useActivity();
+  const [cfRatingHistory, setCfRatingHistory] = useState([]);
 
   // ── initial sync state ──
   const [initialSyncing, setInitialSyncing] = useState(false);
@@ -74,6 +78,18 @@ const Dashboard = () => {
   useEffect(() => {
     trackPageView();
   }, []);
+
+  useEffect(() => {
+    if (user?.codeforcesHandle) {
+      api.get("/api/codeforces/rating-history")
+        .then((res) => {
+          if (res.data?.success) setCfRatingHistory(res.data.ratingHistory || []);
+        })
+        .catch(() => {});
+    } else {
+      setCfRatingHistory([]);
+    }
+  }, [user?.codeforcesHandle]);
 
   useEffect(() => {
     // If the user has synced data, just load normally
@@ -263,20 +279,27 @@ const Dashboard = () => {
     const tryhackmeWeekly = last7Days.reduce((s, d) => s + (d.tryhackmeCount || 0), 0);
     const lastTryhackme = [...days].reverse().find((d) => (d.tryhackmeCount || 0) > 0);
 
+    const codeforcesTotal = days.reduce((s, d) => s + (d.codeforcesCount || 0), 0);
+    const codeforcesWeekly = last7Days.reduce((s, d) => s + (d.codeforcesCount || 0), 0);
+    const lastCodeforces = [...days].reverse().find((d) => (d.codeforcesCount || 0) > 0);
+
     return {
       githubTotal,
       leetcodeTotal,
-      tryhackmeTotal,      // ← new
+      tryhackmeTotal,
+      codeforcesTotal,
       mostActiveDay,
       peakMonth,
       avgPerDay,
       activeDaysIn30,
       lastGithub,
       lastLeetcode,
-      lastTryhackme,       // ← new
+      lastTryhackme,
+      lastCodeforces,
       githubWeekly,
       leetcodeWeekly,
-      tryhackmeWeekly,     // ← new
+      tryhackmeWeekly,
+      codeforcesWeekly,
       consistency,
     };
   }, [days]);
@@ -435,6 +458,32 @@ const Dashboard = () => {
                 delay={150}
               />
             )}
+            {user?.codeforcesHandle && (
+              <StatCard
+                label="Codeforces submissions"
+                value={insights?.codeforcesTotal ?? 0}
+                sub={insights ? `${insights.codeforcesWeekly} this week` : undefined}
+                icon={<CodeforcesIcon />}
+                accent="info"
+                subTone="info"
+                delay={155}
+              />
+            )}
+            {user?.codeforcesHandle && (
+              <StatCard
+                label="Codeforces rating"
+                value={platformStats?.codeforces?.rating ?? "Unrated"}
+                sub={
+                  platformStats?.codeforces?.maxRating
+                    ? `Peak: ${platformStats.codeforces.maxRating} (${platformStats.codeforces.rank || "unrated"})`
+                    : `${platformStats?.codeforces?.uniqueSolved ?? 0} problems solved`
+                }
+                icon={<CodeforcesIcon />}
+                accent="info"
+                subTone="info"
+                delay={165}
+              />
+            )}
             <StatCard
               label="Consistency score"
               value={`${insights?.consistency ?? 0}%`}
@@ -457,7 +506,10 @@ const Dashboard = () => {
                 {user?.tryhackmeUsername && (
                   <span><span className="dot dot--tryhackme" /> TryHackMe</span>
                 )}
-                {((user?.leetcodeUsername ? 1 : 0) + (user?.tryhackmeUsername ? 1 : 0) >= 1) && (
+                {user?.codeforcesHandle && (
+                  <span><span className="dot dot--codeforces" /> Codeforces</span>
+                )}
+                {((user?.leetcodeUsername ? 1 : 0) + (user?.tryhackmeUsername ? 1 : 0) + (user?.codeforcesHandle ? 1 : 0) >= 1) && (
                   <span><span className="dot dot--combined" /> Combined</span>
                 )}
               </div>
@@ -469,6 +521,7 @@ const Dashboard = () => {
                 github: true,
                 leetcode: !!user?.leetcodeUsername,
                 tryhackme: !!user?.tryhackmeUsername,
+                codeforces: !!user?.codeforcesHandle,
               }}
             />
 
@@ -482,7 +535,16 @@ const Dashboard = () => {
             )}
           </div>
 
-          <div className={`dashboard__panels ${user?.leetcodeUsername && user?.tryhackmeUsername ? 'dashboard__panels--three' : ''}`}>
+          {user?.codeforcesHandle && (
+            <div className="card fade-up" style={{ animationDelay: "280ms" }}>
+              <CodeforcesRatingGraph
+                ratingHistory={cfRatingHistory}
+                handle={user.codeforcesHandle}
+              />
+            </div>
+          )}
+
+          <div className={`dashboard__panels ${(user?.leetcodeUsername ? 1 : 0) + (user?.tryhackmeUsername ? 1 : 0) + (user?.codeforcesHandle ? 1 : 0) >= 3 ? 'dashboard__panels--four' : (user?.leetcodeUsername ? 1 : 0) + (user?.tryhackmeUsername ? 1 : 0) + (user?.codeforcesHandle ? 1 : 0) === 2 ? 'dashboard__panels--three' : ''}`}>
             <ActivityPanel
               title="GitHub activity"
               accent="secondary"
@@ -530,6 +592,27 @@ const Dashboard = () => {
                 ]}
                 lastActive={insights?.lastTryhackme?.date}
                 delay={420}
+              />
+            )}
+            {user?.codeforcesHandle && (
+              <ActivityPanel
+                title="Codeforces activity"
+                accent="primary"
+                icon={<CodeforcesIcon />}
+                rows={[
+                  { label: "Submissions this week", value: insights?.codeforcesWeekly ?? 0 },
+                  { label: "Last 12 months", value: insights?.codeforcesTotal ?? 0 },
+                  { label: "Problems solved", value: platformStats?.codeforces?.uniqueSolved ?? "—" },
+                  {
+                    label: "Rating / Rank",
+                    value: platformStats?.codeforces?.rating
+                      ? `${platformStats.codeforces.rating} (${platformStats.codeforces.rank || "unrated"})`
+                      : "Unrated",
+                  },
+                  { label: "Handle", value: user.codeforcesHandle, mono: true },
+                ]}
+                lastActive={insights?.lastCodeforces?.date}
+                delay={480}
               />
             )}
           </div>

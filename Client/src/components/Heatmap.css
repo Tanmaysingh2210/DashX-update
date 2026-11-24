@@ -114,6 +114,12 @@
 .heatmap__cell--tryhackme-3 { background-color: #b83030; }
 .heatmap__cell--tryhackme-4 { background-color: #e05252; }
 
+/* ── Codeforces only — cyan/blue scale ── */
+.heatmap__cell--codeforces-1 { background-color: #0c2d48; }
+.heatmap__cell--codeforces-2 { background-color: #145da0; }
+.heatmap__cell--codeforces-3 { background-color: #2e8bc0; }
+.heatmap__cell--codeforces-4 { background-color: #38bdf8; }
+
 /* ── Any combination of 2+ platforms — purple scale ── */
 .heatmap__cell--combined-1 { background-color: #4a2d7a; }
 .heatmap__cell--combined-2 { background-color: #6d35b8; }
@@ -124,10 +130,9 @@
 
 .heatmap__footer {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 /* ── tooltip ── */
@@ -138,7 +143,8 @@
   gap: var(--space-4);
   font-size: var(--fs-body-md);
   color: var(--color-on-surface-variant);
-  min-height: 20px;
+  min-height: 24px;
+  width: 100%;
   flex-wrap: wrap;
 }
 
@@ -203,19 +209,15 @@
   flex-shrink: 0;
 }
 
-.dot--github    { background-color: #7bdb80; }
-.dot--leetcode  { background-color: #ffb867; }
-.dot--tryhackme { background-color: #e05252; }
-.dot--combined  { background-color: #c084fc; }
+.dot--github      { background-color: #7bdb80; }
+.dot--leetcode    { background-color: #ffb867; }
+.dot--tryhackme   { background-color: #e05252; }
+.dot--combined    { background-color: #c084fc; }
+.dot--codeforces  { background-color: #38bdf8; }
 
 /* ── responsive ── */
 
 @media (max-width: 900px) {
-  .heatmap__footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-3);
-  }
   .heatmap__legend { gap: var(--space-3); }
 }
 

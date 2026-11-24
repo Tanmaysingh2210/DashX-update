@@ -25,7 +25,7 @@ const escapeHtml = (str) =>
 
 
 
-export const buildOgHtml = ({ title, description, image, url, username, leetcode, stats, memberSince }) => {
+export const buildOgHtml = ({ title, description, image, url, username, leetcode, codeforces, stats, memberSince }) => {
 
   // WhatsApp truncates description to ~80 chars — make the first 80 count
   const shortDescription = description.length > 80
@@ -47,7 +47,8 @@ export const buildOgHtml = ({ title, description, image, url, username, leetcode
       "url": url,
       "sameAs": [
         `https://github.com/${username}`,
-        ...(leetcode ? [`https://leetcode.com/${leetcode}`] : [])
+        ...(leetcode ? [`https://leetcode.com/${leetcode}`] : []),
+        ...(codeforces ? [`https://codeforces.com/profile/${codeforces}`] : [])
       ],
       "knowsAbout": ["Software Development", "Competitive Programming", "Data Structures and Algorithms"],
       "description": description,
@@ -64,7 +65,15 @@ export const buildOgHtml = ({ title, description, image, url, username, leetcode
             "interactionType": "https://schema.org/WriteAction",
             "name": "LeetCode Submissions (12 months)",
             "userInteractionCount": stats.leetcodeTotal || 0
-          }
+          },
+          ...(stats.codeforcesTotal ? [
+            {
+              "@type": "InteractionCounter",
+              "interactionType": "https://schema.org/WriteAction",
+              "name": "Codeforces Submissions (12 months)",
+              "userInteractionCount": stats.codeforcesTotal
+            }
+          ] : [])
         ]
       } : {})
     }

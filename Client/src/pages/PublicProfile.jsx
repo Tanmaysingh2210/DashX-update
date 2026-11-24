@@ -14,6 +14,8 @@ import {
   CommitIcon,
   ClockIcon,
 } from "../components/Icons";
+import { CodeforcesIcon } from "../components/CodeforcesIcon";
+import "../components/StatCard.css";
 import "./PublicProfile.css";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -149,7 +151,7 @@ const PublicProfile = () => {
     );
   }
 
-  const connectedCount = 1 + (profile.leetcodeUsername ? 1 : 0) + (profile.tryhackmeUsername ? 1 : 0);
+  const connectedCount = 1 + (profile.leetcodeUsername ? 1 : 0) + (profile.tryhackmeUsername ? 1 : 0) + (profile.codeforcesHandle ? 1 : 0);
 
   return (
     <div className="public-profile fade-in">
@@ -196,6 +198,16 @@ const PublicProfile = () => {
                     <TryHackMeIcon width={14} height={14} /> {profile.tryhackmeUsername}
                   </a>
                 )}
+                {profile.codeforcesHandle && (
+                  <a
+                    href={`https://codeforces.com/profile/${profile.codeforcesHandle}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="public-profile__handle public-profile__handle--cf"
+                  >
+                    <CodeforcesIcon width={14} height={14} /> {profile.codeforcesHandle}
+                  </a>
+                )}
               </div>
 
               {/* ── connected platforms badges ── */}
@@ -211,6 +223,11 @@ const PublicProfile = () => {
                 {profile.tryhackmeUsername && (
                   <span className="public-profile__platform-badge public-profile__platform-badge--thm">
                     <TryHackMeIcon width={12} height={12} /> TryHackMe
+                  </span>
+                )}
+                {profile.codeforcesHandle && (
+                  <span className="public-profile__platform-badge public-profile__platform-badge--cf">
+                    <CodeforcesIcon width={12} height={12} /> Codeforces
                   </span>
                 )}
               </div>
@@ -275,6 +292,30 @@ const PublicProfile = () => {
               delay={150}
             />
           )}
+          {profile.codeforcesHandle && (
+            <PublicStatCard
+              label="Codeforces submissions"
+              value={stats.codeforcesTotal ?? 0}
+              sub={`${stats.codeforcesWeekly ?? 0} this week`}
+              icon={<CodeforcesIcon />}
+              accent="info"
+              delay={160}
+            />
+          )}
+          {profile.codeforcesHandle && (
+            <PublicStatCard
+              label="Codeforces rating"
+              value={pStats.codeforces?.rating ?? "Unrated"}
+              sub={
+                pStats.codeforces?.maxRating
+                  ? `Peak: ${pStats.codeforces.maxRating} (${pStats.codeforces.rank || "unrated"})`
+                  : `${pStats.codeforces?.uniqueSolved ?? 0} problems solved`
+              }
+              icon={<CodeforcesIcon />}
+              accent="info"
+              delay={170}
+            />
+          )}
           <PublicStatCard
             label="Consistency"
             value={`${stats.consistency}%`}
@@ -293,7 +334,8 @@ const PublicProfile = () => {
               <span><span className="dot dot--github" /> GitHub</span>
               {profile.leetcodeUsername && <span><span className="dot dot--leetcode" /> LeetCode</span>}
               {profile.tryhackmeUsername && <span><span className="dot dot--tryhackme" /> TryHackMe</span>}
-              {((profile.leetcodeUsername ? 1 : 0) + (profile.tryhackmeUsername ? 1 : 0) >= 1) && (
+              {profile.codeforcesHandle && <span><span className="dot dot--codeforces" /> Codeforces</span>}
+              {((profile.leetcodeUsername ? 1 : 0) + (profile.tryhackmeUsername ? 1 : 0) + (profile.codeforcesHandle ? 1 : 0) >= 1) && (
                 <span><span className="dot dot--combined" /> Combined</span>
               )}
             </div>
@@ -315,7 +357,7 @@ const PublicProfile = () => {
         </div>
 
         {/* ── activity panels (dashboard-style) ── */}
-        <div className={`public-profile__panels ${connectedCount >= 3 ? 'public-profile__panels--three' : ''}`}>
+        <div className={`public-profile__panels ${connectedCount >= 4 ? 'public-profile__panels--four' : connectedCount >= 3 ? 'public-profile__panels--three' : ''}`}>
           <ActivityPanel
             title="GitHub activity"
             accent="secondary"
@@ -328,7 +370,7 @@ const PublicProfile = () => {
                 label: "Profile",
                 value: (
                   <a href={`https://github.com/${profile.githubUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link">
-                    github.com/{profile.githubUsername}
+                    View profile →
                   </a>
                 ),
               },
@@ -388,6 +430,35 @@ const PublicProfile = () => {
               delay={380}
             />
           )}
+
+          {profile.codeforcesHandle && (
+            <ActivityPanel
+              title="Codeforces activity"
+              accent="info"
+              icon={<CodeforcesIcon />}
+              rows={[
+                { label: "Submissions this week", value: stats.codeforcesWeekly ?? 0 },
+                { label: "Last 12 months", value: stats.codeforcesTotal ?? 0 },
+                {
+                  label: "Rating / Rank",
+                  value: pStats.codeforces?.rating
+                    ? `${pStats.codeforces.rating} (${pStats.codeforces.rank || "unrated"})`
+                    : (pStats.codeforces?.rank || "Unrated"),
+                },
+                { label: "Problems solved", value: pStats.codeforces?.uniqueSolved ?? "—" },
+                {
+                  label: "Profile",
+                  value: (
+                    <a href={`https://codeforces.com/profile/${profile.codeforcesHandle}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--cf">
+                      codeforces.com/profile/{profile.codeforcesHandle}
+                    </a>
+                  ),
+                },
+              ]}
+              lastActive={stats.lastCodeforces}
+              delay={420}
+            />
+          )}
         </div>
 
         {/* ── footer ── */}
@@ -395,7 +466,7 @@ const PublicProfile = () => {
           <p className="body-md">
             Built with{" "}
             <Link to="/" className="public-profile__link">DashX</Link>
-            {" "}— track your coding consistency across GitHub, LeetCode, and TryHackMe.
+            {" "}— track your coding consistency across GitHub, LeetCode, TryHackMe, and Codeforces.
           </p>
         </div>
 
@@ -445,7 +516,7 @@ const ActivityPanel = ({ title, icon, accent, rows, lastActive, delay }) => (
     </div>
 
     <div className="activity-panel__footer">
-      <span className={`dot dot--${accent === "secondary" ? "github" : accent === "danger" ? "tryhackme" : "leetcode"}`} />
+      <span className={`dot dot--${accent === "secondary" ? "github" : accent === "danger" ? "tryhackme" : accent === "info" ? "codeforces" : "leetcode"}`} />
       <span className="label-md activity-panel__last-active">
         Last active: {lastActive ? formatDateRelative(lastActive) : "—"}
       </span>
