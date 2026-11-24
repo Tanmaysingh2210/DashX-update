@@ -214,10 +214,27 @@ const fetchFromAllPlatforms = async (
 const saveToDb = async (userId, mergedDays) => {
   if (!mergedDays.length) return;
 
-  const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, tryhackmeCount, codeforcesCount, totalCount }) => ({
+  const bulkOps = mergedDays.map(({ date, githubCount, leetcodeCount, tryhackmeCount }) => ({
     updateOne: {
       filter: { userId, date },
-      update: { $set: { githubCount, leetcodeCount, tryhackmeCount, codeforcesCount, totalCount } },
+      update: [
+        {
+          $set: {
+            githubCount,
+            leetcodeCount,
+            tryhackmeCount,
+            codeforcesCount: { $ifNull: ["$codeforcesCount", 0] },
+            totalCount: {
+              $add: [
+                githubCount,
+                leetcodeCount,
+                tryhackmeCount,
+                { $ifNull: ["$codeforcesCount", 0] },
+              ],
+            },
+          },
+        },
+      ],
       upsert: true,
     },
   }));

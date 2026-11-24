@@ -398,7 +398,7 @@ const PublicProfile = () => {
                   label: "Profile",
                   value: (
                     <a href={`https://leetcode.com/${profile.leetcodeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--lc">
-                      leetcode.com/{profile.leetcodeUsername}
+                      View profile →
                     </a>
                   ),
                 },
@@ -421,7 +421,7 @@ const PublicProfile = () => {
                   label: "Profile",
                   value: (
                     <a href={`https://tryhackme.com/r/p/${profile.tryhackmeUsername}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--thm">
-                      tryhackme.com/r/p/{profile.tryhackmeUsername}
+                      View profile →
                     </a>
                   ),
                 },
@@ -450,7 +450,7 @@ const PublicProfile = () => {
                   label: "Profile",
                   value: (
                     <a href={`https://codeforces.com/profile/${profile.codeforcesHandle}`} target="_blank" rel="noopener noreferrer" className="public-profile__link public-profile__link--cf">
-                      codeforces.com/profile/{profile.codeforcesHandle}
+                      View profile →
                     </a>
                   ),
                 },

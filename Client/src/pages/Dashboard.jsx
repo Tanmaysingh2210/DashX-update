@@ -89,7 +89,7 @@ const Dashboard = () => {
     } else {
       setCfRatingHistory([]);
     }
-  }, [user?.codeforcesHandle]);
+  }, [user?.codeforcesHandle, stats?.lastSynced]);
 
   useEffect(() => {
     // If the user has synced data, just load normally

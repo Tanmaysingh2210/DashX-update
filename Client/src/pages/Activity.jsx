@@ -17,7 +17,6 @@ import {
   ShieldIcon,
 } from "../components/Icons";
 import { CodeforcesIcon } from "../components/CodeforcesIcon";
-import api from "../api/axios";
 import "./Activity.css";
 
 const formatDate = (dateStr) => {
@@ -52,7 +51,6 @@ const Activity = () => {
   const { user } = useAuth();
   const { days, stats, loading, error, loadAll } = useActivity();
   const [platformFilter, setPlatformFilter] = useState("all");
-  const [cfDetails, setCfDetails] = useState([]);
 
   const hasTHM = !!user?.tryhackmeUsername;
   const hasLC = !!user?.leetcodeUsername;
@@ -65,18 +63,6 @@ const Activity = () => {
   useEffect(() => {
     trackPageView();
   }, []);
-
-  useEffect(() => {
-    if (user?.codeforcesHandle) {
-      api.get("/api/codeforces/activity")
-        .then((res) => {
-          if (res.data?.success) setCfDetails(res.data.days || []);
-        })
-        .catch(() => {});
-    }
-  }, [user?.codeforcesHandle]);
-
-  const cfDetailMap = useMemo(() => new Map(cfDetails.map((d) => [d.date, d])), [cfDetails]);
 
   const data = useMemo(() => {
     if (!days.length) return null;
@@ -295,9 +281,7 @@ const Activity = () => {
 
               {data?.timeline?.length ? (
                 <ul className="timeline">
-                  {data.timeline.map((day, i) => {
-                    const cfDay = cfDetailMap.get(day.date);
-                    return (
+                  {data.timeline.map((day, i) => (
                     <li key={day.date} className="timeline__item fade-up" style={{ animationDelay: `${280 + i * 50}ms` }}>
                       <div className="timeline__rail">
                         <span className="timeline__dot" />
@@ -346,18 +330,13 @@ const Activity = () => {
                               </span>
                               <span className="body-md">
                                 {day.codeforcesCount} Codeforces submission{day.codeforcesCount > 1 ? "s" : ""}
-                                {cfDay && (
-                                  <span style={{ opacity: 0.8, marginLeft: 6, fontSize: "0.85em" }}>
-                                    ({cfDay.accepted} accepted, {cfDay.uniqueSolved} solved)
-                                  </span>
-                                )}
                               </span>
                             </div>
                           )}
                         </div>
                       </div>
                     </li>
-                  )})}
+                  ))}
                 </ul>
               ) : (
                 <p className="body-md">No recent activity found for this filter.</p>

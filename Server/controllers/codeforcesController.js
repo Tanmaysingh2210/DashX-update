@@ -1,19 +1,14 @@
 import User from "../models/User.js";
+import Activity from "../models/Activity.js";
 import CodeforcesProfile from "../models/CodeforcesProfile.js";
-import CodeforcesSubmission from "../models/CodeforcesSubmission.js";
 import { formatUser } from "./authController.js";
 import {
-  validateCodeforcesHandle,
   fetchCodeforcesProfile,
   syncCodeforcesProfile,
   runInitialCodeforcesSync,
   runIncrementalCodeforcesSync,
-  computeCodeforcesStats,
-  aggregateCodeforcesActivity,
+  isCodeforcesSyncActive,
 } from "../services/codeforcesService.js";
-
-// In-memory guard: prevent concurrent syncs for the same user
-const _activeSyncs = new Set();
 
 // ─── PATCH /auth/connect/codeforces & /api/auth/setup-codeforces ──────────────
 
@@ -31,7 +26,6 @@ export const connectCodeforces = async (req, res) => {
 
     const handle = codeforcesHandle.trim();
 
-    // Basic format validation: CF handles are 3-24 chars, alphanumeric + hyphen/underscore
     if (!/^[a-zA-Z0-9_-]{3,24}$/.test(handle)) {
       return res.status(400).json({
         success: false,
@@ -39,7 +33,6 @@ export const connectCodeforces = async (req, res) => {
       });
     }
 
-    // Never allow a request to connect a Codeforces account to another DashX user's record
     const existing = await User.findOne({
       codeforcesHandle: { $regex: new RegExp(`^${handle}$`, "i") },
       _id: { $ne: req.user._id },
@@ -52,34 +45,46 @@ export const connectCodeforces = async (req, res) => {
       });
     }
 
-    // Validate handle exists on Codeforces by fetching profile
     console.log(`[CF Connect] validating handle: ${handle}`);
-    let profileData = null;
+    let profileData;
     try {
       profileData = await fetchCodeforcesProfile(handle);
     } catch (valErr) {
+      const msg = valErr?.message || "";
+      if (msg.includes("unreachable") || msg.includes("HTTP 5")) {
+        return res.status(503).json({
+          success: false,
+          message: "Codeforces API is temporarily unavailable. Please try again shortly.",
+        });
+      }
       return res.status(400).json({
         success: false,
         message: `Codeforces handle "${handle}" not found. Please check for typos.`,
       });
     }
 
-    // Save handle and initial profile information
-    const profileDoc = await syncCodeforcesProfile(req.user._id, handle).catch(() => null);
+    const canonicalHandle = profileData.handle || handle;
+    const profileDoc = await syncCodeforcesProfile(req.user._id, canonicalHandle, profileData).catch(
+      () => null
+    );
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
       {
-        codeforcesHandle: handle,
+        codeforcesHandle: canonicalHandle,
         codeforcesConnectedAt: new Date(),
+        codeforcesLastSubmissionId: null,
         codeforcesSyncStatus: "syncing",
         codeforcesSyncError: null,
-        ...(profileDoc && {
-          "platformStats.codeforces.rating": profileDoc.rating ?? null,
-          "platformStats.codeforces.maxRating": profileDoc.maxRating ?? null,
-          "platformStats.codeforces.rank": profileDoc.rank ?? null,
-          "platformStats.codeforces.maxRank": profileDoc.maxRank ?? null,
-        }),
+        "platformStats.codeforces": {
+          rating: profileDoc?.rating ?? profileData.rating ?? null,
+          maxRating: profileDoc?.maxRating ?? profileData.maxRating ?? null,
+          rank: profileDoc?.rank ?? profileData.rank ?? null,
+          maxRank: profileDoc?.maxRank ?? profileData.maxRank ?? null,
+          totalSubmissions: 0,
+          acceptedSubmissions: 0,
+          uniqueSolved: 0,
+        },
       },
       { returnDocument: "after" }
     );
@@ -87,13 +92,12 @@ export const connectCodeforces = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Codeforces connected. Syncing in background…",
-      codeforcesHandle: handle,
+      codeforcesHandle: canonicalHandle,
       user: formatUser(user),
     });
 
-    // Start initial synchronization in background
-    runInitialCodeforcesSync(String(user._id), handle).catch((err) => {
-      console.error(`[CF Connect] background sync failed for ${handle}:`, err.message);
+    runInitialCodeforcesSync(String(user._id), canonicalHandle, profileData).catch((err) => {
+      console.error(`[CF Connect] background sync failed for ${canonicalHandle}:`, err.message);
     });
   } catch (err) {
     console.error("[connectCodeforces] error:", err.message);
@@ -103,9 +107,6 @@ export const connectCodeforces = async (req, res) => {
 
 // ─── GET /api/codeforces/profile ─────────────────────────────────────────────
 
-/**
- * Returns the cached Codeforces profile for the authenticated user.
- */
 export const getCodeforcesProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
@@ -152,9 +153,6 @@ export const getCodeforcesProfile = async (req, res) => {
 
 // ─── GET /api/codeforces/stats ────────────────────────────────────────────────
 
-/**
- * Returns Codeforces statistics for the authenticated user.
- */
 export const getCodeforcesStats = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
@@ -170,6 +168,9 @@ export const getCodeforcesStats = async (req, res) => {
       .select("rating maxRating rank maxRank")
       .lean();
 
+    const totalSubmissions = cached.totalSubmissions ?? 0;
+    const acceptedSubmissions = cached.acceptedSubmissions ?? 0;
+
     res.status(200).json({
       success: true,
       stats: {
@@ -177,12 +178,12 @@ export const getCodeforcesStats = async (req, res) => {
         maxRating: profile?.maxRating ?? cached.maxRating ?? null,
         rank: profile?.rank ?? cached.rank ?? null,
         maxRank: profile?.maxRank ?? cached.maxRank ?? null,
-        totalSubmissions: cached.totalSubmissions ?? 0,
-        acceptedSubmissions: cached.acceptedSubmissions ?? 0,
+        totalSubmissions,
+        acceptedSubmissions,
         uniqueSolved: cached.uniqueSolved ?? 0,
         accuracy:
-          cached.totalSubmissions > 0
-            ? Math.round((cached.acceptedSubmissions / cached.totalSubmissions) * 1000) / 10
+          totalSubmissions > 0
+            ? Math.round((acceptedSubmissions / totalSubmissions) * 1000) / 10
             : 0,
         lastSyncedAt: user.codeforcesLastSyncedAt,
         syncStatus: user.codeforcesSyncStatus,
@@ -196,9 +197,6 @@ export const getCodeforcesStats = async (req, res) => {
 
 // ─── GET /api/codeforces/rating-history ──────────────────────────────────────
 
-/**
- * Returns rating history in chronological order.
- */
 export const getRatingHistory = async (req, res) => {
   try {
     const user = req.user;
@@ -214,7 +212,6 @@ export const getRatingHistory = async (req, res) => {
       return res.status(200).json({ success: true, ratingHistory: [] });
     }
 
-    // Already sorted ascending by time in codeforcesService
     res.status(200).json({
       success: true,
       handle: profile.handle,
@@ -229,8 +226,8 @@ export const getRatingHistory = async (req, res) => {
 // ─── GET /api/codeforces/activity ────────────────────────────────────────────
 
 /**
- * Returns Codeforces daily activity.
- * Supports same ?from / ?to query params as the main heatmap endpoint.
+ * Returns Codeforces daily submission counts from the existing Activity collection.
+ * Supports ?from / ?to / ?today query params matching the main heatmap endpoint.
  */
 export const getCodeforcesActivity = async (req, res) => {
   try {
@@ -249,48 +246,19 @@ export const getCodeforcesActivity = async (req, res) => {
     const from = req.query.from || oneYearAgo;
     const to = req.query.to || today;
 
-    // Pull from submissions — group by date
-    const pipeline = [
-      {
-        $match: {
-          userId: user._id,
-          submittedAt: {
-            $gte: new Date(from + "T00:00:00.000Z"),
-            $lte: new Date(to + "T23:59:59.999Z"),
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$submittedAt", timezone: "UTC" },
-          },
-          submissions: { $sum: 1 },
-          accepted: { $sum: { $cond: [{ $eq: ["$verdict", "OK"] }, 1, 0] } },
-          solvedKeys: {
-            $addToSet: {
-              $cond: [
-                { $and: [{ $eq: ["$verdict", "OK"] }, { $ne: ["$problemKey", null] }] },
-                "$problemKey",
-                "$$REMOVE",
-              ],
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          date: "$_id",
-          submissions: 1,
-          accepted: 1,
-          uniqueSolved: { $size: "$solvedKeys" },
-        },
-      },
-      { $sort: { date: 1 } },
-    ];
+    const docs = await Activity.find({
+      userId: user._id,
+      codeforcesCount: { $gt: 0 },
+      date: { $gte: from, $lte: to },
+    })
+      .sort({ date: 1 })
+      .select("-_id date codeforcesCount")
+      .lean();
 
-    const days = await CodeforcesSubmission.aggregate(pipeline);
+    const days = docs.map((entry) => ({
+      date: entry.date,
+      submissions: entry.codeforcesCount,
+    }));
 
     res.status(200).json({ success: true, from, to, days });
   } catch (err) {
@@ -302,8 +270,8 @@ export const getCodeforcesActivity = async (req, res) => {
 // ─── POST /api/codeforces/sync ────────────────────────────────────────────────
 
 /**
- * Manually triggers an incremental sync for the authenticated user.
- * Prevents duplicate concurrent syncs.
+ * Manually triggers a Codeforces sync for the authenticated user.
+ * Supports optional ?full=true or body { full: true } for full-history reconciliation.
  */
 export const syncCodeforces = async (req, res) => {
   try {
@@ -313,21 +281,27 @@ export const syncCodeforces = async (req, res) => {
     }
 
     const userId = String(user._id);
-
-    if (_activeSyncs.has(userId)) {
+    if (isCodeforcesSyncActive(userId)) {
       return res.status(409).json({
         success: false,
         message: "A sync is already in progress for your account",
       });
     }
 
-    _activeSyncs.add(userId);
-    res.status(202).json({ success: true, message: "Codeforces sync started" });
+    const full = req.body?.full === true || req.query?.full === "true";
+    res.status(202).json({
+      success: true,
+      message: full ? "Full Codeforces sync started" : "Codeforces sync started",
+    });
 
-    runIncrementalCodeforcesSync(userId, user.codeforcesHandle, user.codeforcesLastSubmissionId)
-      .finally(() => {
-        _activeSyncs.delete(userId);
-      });
+    runIncrementalCodeforcesSync(
+      userId,
+      user.codeforcesHandle,
+      user.codeforcesLastSubmissionId,
+      { full }
+    ).catch((err) => {
+      console.error("[syncCodeforces] background error:", err.message);
+    });
   } catch (err) {
     console.error("[syncCodeforces] error:", err.message);
     res.status(500).json({ success: false, message: "Server error" });
@@ -336,11 +310,6 @@ export const syncCodeforces = async (req, res) => {
 
 // ─── DELETE /api/codeforces/disconnect ───────────────────────────────────────
 
-/**
- * Disconnects Codeforces. Clears handle + sync metadata.
- * Does NOT delete submission history (user can reconnect).
- * Does NOT affect GitHub or LeetCode.
- */
 export const disconnectCodeforces = async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
@@ -374,9 +343,6 @@ export const disconnectCodeforces = async (req, res) => {
 
 // ─── GET /api/codeforces/sync-status ─────────────────────────────────────────
 
-/**
- * Returns the current CF sync status (for polling after connect).
- */
 export const getCodeforcesSyncStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)

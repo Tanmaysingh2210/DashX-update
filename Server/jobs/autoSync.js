@@ -64,7 +64,8 @@ export const runAutoSync = async () => {
             await runIncrementalCodeforcesSync(
               String(user._id),
               user.codeforcesHandle,
-              user.codeforcesLastSubmissionId || null
+              user.codeforcesLastSubmissionId || null,
+              { reconcileOnAccepted: true }
             );
           }
         }

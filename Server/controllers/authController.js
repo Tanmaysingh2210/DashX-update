@@ -264,6 +264,15 @@ export const disconnectPlatform = async (req, res) => {
       updates.codeforcesLastSubmissionId = null;
       updates.codeforcesSyncStatus = "idle";
       updates.codeforcesSyncError = null;
+      updates["platformStats.codeforces"] = {
+        rating: null,
+        maxRating: null,
+        rank: null,
+        maxRank: null,
+        totalSubmissions: 0,
+        acceptedSubmissions: 0,
+        uniqueSolved: 0,
+      };
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });
